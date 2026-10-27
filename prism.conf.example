@@ -1,0 +1,7 @@
+{
+  "host": "192.0.2.20",
+  "port": 8123,
+  "token": "REPLACE_WITH_A_HOME_ASSISTANT_LONG_LIVED_TOKEN",
+  "reduced_motion": false,
+  "diagnostics": false
+}

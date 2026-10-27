@@ -1,0 +1,303 @@
+{
+  "devices": [
+    {
+      "id": "demo-tv",
+      "name": "Living Room LG C1",
+      "name_by_user": null
+    }
+  ],
+  "entities": [
+    {
+      "entity_id": "select.living_room_app",
+      "unique_id": "glasshouse_demo_app",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "sensor.living_room_active_app",
+      "unique_id": "glasshouse_demo_active_app",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "select.living_room_input_source",
+      "unique_id": "glasshouse_demo_input_source",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "select.living_room_picture_mode",
+      "unique_id": "glasshouse_demo_picture_mode",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "number.living_room_oled_light",
+      "unique_id": "glasshouse_demo_oled_light",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "select.living_room_energy_saving",
+      "unique_id": "glasshouse_demo_energy_saving",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "select.living_room_sound_mode",
+      "unique_id": "glasshouse_demo_sound_mode",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "select.living_room_sleep_timer",
+      "unique_id": "glasshouse_demo_sleep_timer",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "select.living_room_oled_logo_dimming",
+      "unique_id": "glasshouse_demo_oled_logo_dimming",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "text.living_room_keyboard_text",
+      "unique_id": "glasshouse_demo_keyboard_text",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_up",
+      "unique_id": "glasshouse_demo_remote_up",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_down",
+      "unique_id": "glasshouse_demo_remote_down",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_left",
+      "unique_id": "glasshouse_demo_remote_left",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_right",
+      "unique_id": "glasshouse_demo_remote_right",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_ok",
+      "unique_id": "glasshouse_demo_remote_ok",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_back",
+      "unique_id": "glasshouse_demo_remote_back",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_remote_home",
+      "unique_id": "glasshouse_demo_remote_home",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_play_pause",
+      "unique_id": "glasshouse_demo_play_pause",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_rewind",
+      "unique_id": "glasshouse_demo_rewind",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    },
+    {
+      "entity_id": "button.living_room_fast_forward",
+      "unique_id": "glasshouse_demo_fast_forward",
+      "device_id": "demo-tv",
+      "disabled_by": null
+    }
+  ],
+  "states": {
+    "a": {
+      "select.living_room_app": {
+        "s": "Afterglow",
+        "a": {
+          "options": [
+            "Afterglow",
+            "Home Dashboard",
+            "YouTube",
+            "BBC iPlayer",
+            "Homebrew Channel",
+            "Settings"
+          ],
+          "app_ids": {
+            "Afterglow": "org.afterglow",
+            "Home Dashboard": "org.dashboard",
+            "YouTube": "youtube.leanback.v4",
+            "BBC iPlayer": "bbc.iplayer",
+            "Homebrew Channel": "org.webosbrew.hbchannel",
+            "Settings": "com.palm.app.settings"
+          },
+          "app_colors": {
+            "org.afterglow": "#151718",
+            "org.dashboard": "#116e78",
+            "youtube.leanback.v4": "#ed2939",
+            "bbc.iplayer": "#e9448c",
+            "org.webosbrew.hbchannel": "#be005d"
+          }
+        }
+      },
+      "sensor.living_room_active_app": {
+        "s": "HDMI 3",
+        "a": {
+          "app_id": "com.webos.app.hdmi3",
+          "control_app_id": "com.webos.app.hdmi3"
+        }
+      },
+      "select.living_room_input_source": {
+        "s": "HDMI 3",
+        "a": {
+          "options": [
+            "HDMI 1",
+            "HDMI 2",
+            "HDMI 3",
+            "HDMI 4"
+          ]
+        }
+      },
+      "select.living_room_picture_mode": {
+        "s": "cinema",
+        "a": {
+          "options": [
+            "standard",
+            "cinema",
+            "game"
+          ]
+        }
+      },
+      "number.living_room_oled_light": {
+        "s": "65",
+        "a": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      },
+      "select.living_room_energy_saving": {
+        "s": "off",
+        "a": {
+          "options": [
+            "off",
+            "min",
+            "med",
+            "max",
+            "screen_off"
+          ]
+        }
+      },
+      "select.living_room_sound_mode": {
+        "s": "standard",
+        "a": {
+          "options": [
+            "standard",
+            "cinema",
+            "music"
+          ]
+        }
+      },
+      "select.living_room_sleep_timer": {
+        "s": "off",
+        "a": {
+          "options": [
+            "off",
+            "30",
+            "60",
+            "120"
+          ]
+        }
+      },
+      "select.living_room_oled_logo_dimming": {
+        "s": "high",
+        "a": {
+          "options": [
+            "off",
+            "low",
+            "high"
+          ]
+        }
+      },
+      "text.living_room_keyboard_text": {
+        "s": "",
+        "a": {}
+      },
+      "button.living_room_remote_up": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_remote_down": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_remote_left": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_remote_right": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_remote_ok": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_remote_back": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_remote_home": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_play_pause": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_rewind": {
+        "s": "unknown",
+        "a": {}
+      },
+      "button.living_room_fast_forward": {
+        "s": "unknown",
+        "a": {}
+      }
+    }
+  },
+  "config": {
+    "host": "127.0.0.1",
+    "token": "fixture-token",
+    "device": "demo-tv",
+    "input": "HDMI 3",
+    "input_app": "com.webos.app.hdmi3",
+    "favourites": [
+      "org.afterglow",
+      "org.dashboard",
+      "org.webosbrew.hbchannel"
+    ],
+    "recent": [
+      "bbc.iplayer",
+      "youtube.leanback.v4"
+    ],
+    "reduced_motion": true
+  }
+}

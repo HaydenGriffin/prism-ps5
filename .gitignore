@@ -1,0 +1,7 @@
+/build/
+/dist/
+/.deps/
+/runtime/*.prx
+/prism.conf
+*.local.json
+__pycache__/
