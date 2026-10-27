@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 (27 October 2026)
+
+- The remote screen names Game Optimizer, and any other LG system screen without a name of its own is "LG screen",
+  instead of showing its app ID.
+- The README and its pictures show Prism on the TV: screenshots the TV took of LG Settings and Game Optimizer
+  open over Prism.
+
 ## 1.0.0 (27 October 2026)
 
 The first release: Prism's LG remote and launcher as a native PS5 title, run on one console (system software 7.20)

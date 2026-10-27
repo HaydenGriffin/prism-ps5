@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/hero.png" alt="Prism on a PS5: the launcher with Continue on the LG, favourite LG apps with their own icons and recently used apps, beside Quick TV settings and the DualSense controls for an LG app" width="100%">
+  <img src="docs/images/hero.png" alt="Prism on a PS5, captured by the TV: LG Settings open over Prism's remote screen, driven by the DualSense, beside Prism's launcher and Quick TV settings" width="100%">
 </p>
 
 # Prism for PS5
@@ -12,7 +12,7 @@ Prism is also a launcher for the LG, so you can open LG apps, LG Home, LG Settin
 without picking up the LG remote. It is the PS5 edition of [Prism for Android TV](https://github.com/HaydenGriffin/prism),
 which does the same from an Android TV box's remote.
 
-> **Status:** Prism 1.0.0 has run on one PS5 (system software 7.20, ShadowMount Plus 1.7-beta5fix1, ftpsrv
+> **Status:** Prism has run on one PS5 (system software 7.20, ShadowMount Plus 1.7-beta5fix1, ftpsrv
 > 0.21.1) with a rooted 2021 LG C1 and a Home Assistant of about 3,100 entities. Connecting, the launcher, opening
 > LG apps, LG Home and LG Settings, the D-pad, Cross and Back, and the screens LG Settings opens (Game Optimizer)
 > were checked there. Holding Circle to return, touchpad text entry, long idle sessions and rest mode have not been
@@ -40,16 +40,20 @@ forwards again.
 
 ## Screenshots
 
-Rendered by Prism's own UI code and shaders from a live Home Assistant and a 2021 LG C1; see
-[Promotional pictures](#promotional-pictures).
+The ones marked "on the TV" were taken by the TV itself (a 2021 LG C1) while the PS5 showed Prism. The rest are
+rendered by Prism's own UI code and shaders from a live Home Assistant; see [Promotional pictures](#promotional-pictures).
 
-| The launcher | All LG apps |
+| The launcher, on the TV | LG Settings opened from Prism, on the TV |
 |---|---|
-| <img src="docs/images/screenshots/launcher.png" alt="The Prism launcher: Continue on the LG with ITVX, favourite LG apps with their own icons, and recently used apps"> | <img src="docs/images/screenshots/apps.png" alt="All LG apps: Channel 4, Glasshouse, Home Dashboard, Homebrew Channel, House, ITVX, Media Player and Sendspin Cinema"> |
+| <img src="docs/images/tv/launcher.jpg" alt="The Prism launcher on the TV: House to continue on the LG, recently used apps, all apps, LG Home, LG Settings, Quick TV settings and Use as a remote"> | <img src="docs/images/tv/lg-settings.jpg" alt="LG Settings open over Prism's remote screen: Picture, Sound, General and Support, with Prism's controls showing through behind it"> |
 
-| Controlling an LG app | Quick TV settings |
+| All LG apps | Controlling an LG app |
 |---|---|
-| <img src="docs/images/screenshots/remote.png" alt="The remote screen over BBC iPlayer: the D-pad moves, Cross selects, Circle goes back, Square plays and pauses, L1 and R1 rewind and fast-forward, Triangle opens LG Home"> | <img src="docs/images/screenshots/quick-settings.png" alt="Quick TV settings: input, picture mode, OLED brightness, energy saving, sound mode, sleep timer and logo dimming"> |
+| <img src="docs/images/screenshots/apps.png" alt="All LG apps: Channel 4, Glasshouse, Home Dashboard, Homebrew Channel, House, ITVX, Media Player and Sendspin Cinema"> | <img src="docs/images/screenshots/remote.png" alt="The remote screen over BBC iPlayer: the D-pad moves, Cross selects, Circle goes back, Square plays and pauses, L1 and R1 rewind and fast-forward, Triangle opens LG Home"> |
+
+| Game Optimizer from LG Settings, on the TV | Quick TV settings |
+|---|---|
+| <img src="docs/images/tv/game-optimizer.jpg" alt="LG's Game Optimizer open over Prism's remote screen, with Prism's line underneath: Game Optimizer is on the LG, hold Circle to return to the PS5"> | <img src="docs/images/screenshots/quick-settings.png" alt="Quick TV settings: input, picture mode, OLED brightness, energy saving, sound mode, sleep timer and logo dimming"> |
 
 ## Requirements
 
@@ -169,7 +173,16 @@ python3 tools/hero.py
 ```
 
 The snapshot stays in the ignored `build/` folder and holds no token. `tools/hero.py` (Pillow) draws
-`docs/images/hero.png` and `docs/images/screenshots/` from the renders.
+`docs/images/hero.png` and `docs/images/screenshots/` from the renders and the TV captures in
+`docs/images/tv/`. On a rooted LG, those come from webOS's capture service, which saves whatever is on screen,
+LG menus included:
+
+```sh
+luna-send -n 1 luna://com.webos.service.capture/executeOneShot \
+    '{"path": "/tmp/capture.jpg", "method": "DISPLAY", "width": 1920, "height": 1080, "format": "JPEG"}'
+```
+
+Over SSH, `luna-send` can return nothing for this call; running it from a `node` child process on the TV works.
 
 ## Source layout
 

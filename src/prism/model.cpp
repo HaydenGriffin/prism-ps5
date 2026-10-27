@@ -229,17 +229,21 @@ const std::vector<Setting> &settings()
 }
 std::string system_title(const std::string &id)
 {
-    // The same names as Prism for Android TV (RouteStatus.SYSTEM_TITLES).
+    // The names Prism for Android TV uses (RouteStatus.SYSTEM_TITLES), and screens LG Settings
+    // opens. Any other LG system screen is "LG screen", never its raw ID.
     static const std::map<std::string, std::string> titles{
         {"com.webos.app.home", "LG Home"},
+        {"com.webos.app.gameoptimizer", "Game Optimizer"},
+        {"com.webos.app.quickinputpicker", "LG inputs"},
         {"com.palm.app.settings", "LG Settings"},
         {"com.webos.app.settings", "LG Settings"},
         {"com.webos.app.quicksettings", "Quick Settings"},
         {"com.webos.app.tvuserguide", "User Guide"},
         {"com.webos.app.voice", "LG search"},
         {"com.webos.systemui.notification", "LG message"}};
-    auto it = titles.find(id);
-    return it == titles.end() ? "" : it->second;
+    if (auto it = titles.find(id); it != titles.end())
+        return it->second;
+    return id.starts_with("com.webos.") || id.starts_with("com.palm.") ? "LG screen" : "";
 }
 bool launchable(const std::string &id)
 {

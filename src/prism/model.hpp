@@ -68,7 +68,8 @@ struct Setting
 const std::vector<Setting> &settings();
 std::vector<App> catalog(const Tv &tv, const StateTable &states);
 bool launchable(const std::string &id);
-// The LG's own screens, which are not in the app catalogue; "" for anything else.
+// The LG's own screens, which are not in the app catalogue (any com.webos. or com.palm. one is
+// at least "LG screen"); "" for anything else.
 std::string system_title(const std::string &id);
 std::string target(const Tv &tv, const StateTable &states);
 bool overlay_on_input(const Tv &tv, const StateTable &states, const std::string &input_app);

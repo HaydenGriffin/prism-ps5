@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-# Prism for PS5 - README hero and screenshots from the native renders.
+# Prism for PS5 - README hero and screenshots from TV captures and the native renders.
 # Copyright (C) 2026 Hayden Griffin
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Draw docs/images/hero.png and docs/images/screenshots/ from `make promo` renders.
+"""Draw docs/images/hero.png and docs/images/screenshots/.
 
-    docs/images/hero.png         3200 × 1640: the launcher on a TV, Quick TV settings and the
-                                 remote screen beside it, with the lockup and tagline
-    docs/images/screenshots/     the launcher, all LG apps, the remote screen and Quick TV settings
+    docs/images/hero.png         3200 × 1640: LG Settings over Prism on a TV, with Prism's
+                                 launcher and Quick TV settings beside it, the lockup and tagline
+    docs/images/screenshots/     all LG apps, the remote screen and Quick TV settings
 
-The renders are 1920 × 1080 PNGs from Prism's own UI code and shaders (build/promo/), drawn
-from a snapshot of a real Home Assistant (tools/capture-promo.py). The layout follows the
-Android TV app's hero (prism/tools/hero.py).
+docs/images/tv/ holds screenshots the TV took of itself (webOS's capture service, DISPLAY
+method) while the PS5 showed Prism: the launcher, and LG Settings opened from Prism over its
+remote screen. The other pictures are 1920 × 1080 renders from Prism's own UI code and
+shaders (build/promo/), drawn from a snapshot of a real Home Assistant
+(tools/capture-promo.py). The layout follows the Android TV app's hero (prism/tools/hero.py).
 
     pip install pillow
     python3 tools/hero.py [build/promo]
@@ -46,9 +48,10 @@ TAGLINE = [  # (text, font, colour, line height)
 ]
 
 # Regions of the 1920 × 1080 renders (left, top, right, bottom).
-QUICK_CROP = (64, 232, 1208, 512)    # the first three settings
-REMOTE_CROP = (72, 500, 1780, 780)   # the DualSense controls
-SHOTS = {"launcher": "launcher", "apps": "apps", "remote": "remote", "quick-settings": "quick-settings"}
+QUICK_CROP = (64, 232, 1208, 424)     # the first two settings
+LAUNCHER_CROP = (64, 250, 1856, 484)  # the first row: Continue on the LG and recent apps
+TV = ROOT / "docs" / "images" / "tv"
+SHOTS = ("apps", "remote", "quick-settings")
 
 
 def font(weight, size):
@@ -163,7 +166,7 @@ def captioned_panel(canvas, image, label, left, bottom, width):
     return top - 26 - 30
 
 
-def hero(launcher, quick, remote):
+def hero(settings, launcher, quick):
     canvas = Image.new("RGB", (WIDTH, HEIGHT), NIGHT)
     glow(canvas, (2100, 820), 1100, SKY, 0.07)
     glow(canvas, (420, 1400), 700, AMBER, 0.045)
@@ -173,13 +176,15 @@ def hero(launcher, quick, remote):
     screen_w = WIDTH - 2 * MARGIN - column_w - gap - 36
     screen_h = round(screen_w * 9 / 16)
     top = (HEIGHT - screen_h) // 2 - 10
-    tv(canvas, launcher, MARGIN + column_w + gap + 18, top, screen_w)
+    screen_left = MARGIN + column_w + gap + 18
+    tv(canvas, settings, screen_left, top, screen_w)
+    caption(canvas, "LG Settings over Prism, driven by the DualSense", screen_left - 14, top - 50)
 
     below_text = text_column(canvas, MARGIN, top - 18, column_w)
     bottom = top + screen_h + 18
-    remote_top = captioned_panel(canvas, remote, "The DualSense on an LG app", MARGIN, bottom, column_w)
-    quick_top = captioned_panel(canvas, quick, "Quick TV settings", MARGIN, remote_top - 64, column_w)
-    assert quick_top > below_text + 40, f"the panels run into the tagline ({quick_top} <= {below_text + 40})"
+    quick_top = captioned_panel(canvas, quick, "Quick TV settings", MARGIN, bottom, column_w)
+    launcher_top = captioned_panel(canvas, launcher, "Prism on the PS5", MARGIN, quick_top - 64, column_w)
+    assert launcher_top > below_text + 40, f"the panels run into the tagline ({launcher_top} <= {below_text + 40})"
     return canvas
 
 
@@ -191,9 +196,10 @@ def save_png(image, path):
 
 def main():
     renders = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "promo"
-    shots = {name: Image.open(renders / f"{source}.png").convert("RGB") for name, source in SHOTS.items()}
-    save_png(hero(shots["launcher"], shots["quick-settings"].crop(QUICK_CROP), shots["remote"].crop(REMOTE_CROP)),
-             OUT / "hero.png")
+    shots = {name: Image.open(renders / f"{name}.png").convert("RGB") for name in SHOTS}
+    settings = Image.open(TV / "lg-settings.jpg").convert("RGB")
+    launcher = Image.open(TV / "launcher.jpg").convert("RGB")
+    save_png(hero(settings, launcher.crop(LAUNCHER_CROP), shots["quick-settings"].crop(QUICK_CROP)), OUT / "hero.png")
     for name, image in shots.items():
         save_png(image, OUT / "screenshots" / f"{name}.png")
 

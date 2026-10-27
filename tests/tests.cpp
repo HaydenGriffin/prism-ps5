@@ -216,6 +216,8 @@ int main(int argc, char **argv)
     CHECK(!launchable("com.webos.app.hdmi3"));
     CHECK(system_title("com.webos.app.tvuserguide") == "User Guide");
     CHECK(system_title("com.palm.app.settings") == "LG Settings");
+    CHECK(system_title("com.webos.app.gameoptimizer") == "Game Optimizer");
+    CHECK(system_title("com.webos.app.somethingnew") == "LG screen");
     CHECK(system_title("org.example.app").empty());
     CHECK(!launchable("com.palm.app.settings"));
     CHECK(launchable("youtube.leanback.v4"));
