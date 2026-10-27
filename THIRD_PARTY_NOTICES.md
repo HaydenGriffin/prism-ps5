@@ -8,6 +8,6 @@ Prism for PS5 is GPL-3.0-or-later. The parent Android app remains MIT.
 - stb_image, stb_image_write and stb_truetype: Sean Barrett and contributors, MIT or public domain. See src/third_party/stb/LICENSE. stb_image is pinned to f0569113c93ad095470c54bf34a17b36646bbbb5.
 - Atkinson Hyperlegible Next, Braille Institute of America, and Lexend, The Lexend Project Authors: SIL Open Font License 1.1; third_party/fonts/Prism-LICENSE.txt. Font sources are shared with Android Prism; `make fonts` bakes their SDF atlases.
 - PS5 Payload SDK 0.42 and musl objects: MIT, third_party/musl/COPYRIGHT. The public SDK is fetched and hash-checked by tools/setup-native-dependencies.sh.
-- ps5-opengl / Mesa: the pinned release's LICENSE, THIRD_PARTY_NOTICES.md and LICENSES are copied into every package by tools/build.sh.
+- ps5-opengl / Mesa: the pinned release's LICENSE, THIRD_PARTY_NOTICES.md and LICENSES are copied into every package by tools/build.sh. ps5-opengl 1.0.2 is by BlackBearReloaded (GPL-3.0-or-later); its original repository is no longer public, and its source is kept at https://github.com/J7mbo/ps5-opengl (commit a519561 upstream).
 
 No proprietary Sony SDK, firmware or keys are shipped. No connection credentials are packaged.
