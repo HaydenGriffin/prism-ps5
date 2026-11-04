@@ -438,6 +438,10 @@ int main(int argc, char **argv)
     CHECK(dock_rect(0, 5).y + dock_rect(0, 5).h < kFootCentre - 20);
     CHECK(kFootCentre + 40 < 1080);
     CHECK(grid_rect(3).x + grid_rect(3).w <= 1824.5f);
+    // The TV's other apps fill the grid's holes, once each, and never repeat the big tile.
+    CHECK((grid_order({"a", "b"}, {"c", "a"}, {"c", "d", "e"}, "b") ==
+           std::vector<std::string>{"a", "c", "d", "e"}));
+    CHECK(grid_order({}, {}, {}, "").empty());
     // The focus finds its way round the deck's three parts by distance.
     Deck deck;
     std::vector<hui::gfx::Rect> slots = {big_tile_rect()};

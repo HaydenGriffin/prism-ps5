@@ -5,7 +5,7 @@
 - The launcher fits one screen: a big Continue tile, a grid of favourites and recent apps ending in All apps, and a
   dock with LG Home, LG Settings, Quick TV settings, the remote and Setup. Favourites past the grid's seven places stay
   in All apps.
-- Title and hints shrink to one compact line each, so pages have about a third more room. All LG apps shows four whole
+- Title and hints shrink to one compact line each, so pages have about a third more room. All apps shows four whole
   rows of six, and never cuts a row. Setup lists its rows in two columns, so they all show at once.
 - A beam at the foot of the screen shows where the controller goes, the PS5 or the LG, beside the same thing in words.
 - Themes in Setup: Refract (new default; a soft light follows the focused tile in that app's colour), OLED Night, Dusk,

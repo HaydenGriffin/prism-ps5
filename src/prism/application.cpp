@@ -50,7 +50,7 @@ void Application::wear_look()
     theme.radius = look.square ? 0.0f : 16.0f;
     theme.radius_card = look.square ? 0.0f : kTileRadius;
     theme.border = 0;
-    theme.focus_width = 4;
+    theme.focus_width = 6;
     theme.focus_gap = 5;
     theme.dark = look.dark;
     grid_.style.theme = theme;
@@ -87,7 +87,7 @@ void Application::arrange_page()
     }
     else
     {
-        list_.style.row_height = 76;
+        list_.style.row_height = 84;
         list_.set_bounds({96, 160, 1728, 780});
     }
 }
@@ -367,7 +367,7 @@ void Application::rebuild()
     else if (page_ == Page::favourites)
     {
         for (const auto &id : config_.favourites)
-            row(app_name(id), "L1 / R1 to reorder", "On");
+            row(app_name(id), "", "On");
         for (const auto &a : apps_)
             if (launchable(a.id) && std::find(config_.favourites.begin(), config_.favourites.end(),
                                               a.id) == config_.favourites.end())
@@ -417,14 +417,20 @@ void Application::build_deck()
             resume = id;
             break;
         }
-    std::vector<std::string> order;
+    std::vector<std::string> favourites, recent, others;
     for (const auto &id : config_.favourites)
         if (usable(id))
-            order.push_back(id);
+            favourites.push_back(id);
     for (const auto &id : config_.recent)
-        if (usable(id) && !is_favourite(id))
-            order.push_back(id);
-    const std::string hero = !resume.empty() ? resume : order.empty() ? "" : order.front();
+        if (usable(id))
+            recent.push_back(id);
+    for (const auto &a : apps_)
+        if (launchable(a.id))
+            others.push_back(a.id);
+    const std::string hero = !resume.empty()       ? resume
+                             : !favourites.empty() ? favourites.front()
+                             : !recent.empty()     ? recent.front()
+                                                   : "";
     std::vector<hui::gfx::Rect> slots;
     const auto app_tile = [&](const std::string &id, const std::string &label, hui::gfx::Rect rect)
     {
@@ -448,7 +454,8 @@ void Application::build_deck()
     else
     {
         tiles_.push_back(
-            {"@connect", "Nothing to open yet", "Check the TV and connection", "", ""});
+            ready() ? Tile{"@connect", "No apps yet", "Turn on the LG, or check Setup", "", ""}
+                    : Tile{"@connect", "Check connection", "Open Setup", "", ""});
         slots.push_back(big_tile_rect());
     }
     int cell = 0;
@@ -457,12 +464,11 @@ void Application::build_deck()
         tiles_.push_back({"@choose", "Choose favourites", "", "", ""});
         slots.push_back(grid_rect(cell++));
     }
-    for (const auto &id : order)
+    for (const auto &id : grid_order(favourites, recent, others, hero))
     {
         if (cell >= kGridApps)
             break;
-        if (id != hero)
-            app_tile(id, "", grid_rect(cell++));
+        app_tile(id, "", grid_rect(cell++));
     }
     tiles_.push_back({"@apps", "All apps", "", "", ""});
     slots.push_back(grid_rect(kGridApps));

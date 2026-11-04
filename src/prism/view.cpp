@@ -162,21 +162,23 @@ std::string sentence_case(std::string value)
 } // namespace
 void Application::setup_view()
 {
-    grid_.content = [this](Canvas &c, const Rect &r, const hui::ui::CardItem &, int index, float)
+    grid_.content =
+        [this](Canvas &c, const Rect &r, const hui::ui::CardItem &, int index, float focus)
     {
         if (page_ == Page::setup)
-            draw_setup_row(c, r, index);
+            draw_setup_row(c, r, index, focus);
         else
-            draw_app_cell(c, r, index);
+            draw_app_cell(c, r, index, focus);
     };
     list_.content = [this](Canvas &c, const Rect &r, const hui::ui::ListItem &item, int,
                            float focus) { draw_list_row(c, r, item, focus); };
 }
-void Application::draw_panel(Canvas &c, const Rect &r, float radius) const
+// A tile's plate. Its hairline gives way to the focus ring, so the two never read as a double line.
+void Application::draw_panel(Canvas &c, const Rect &r, float radius, float focus) const
 {
     const float round = look_->square ? 0.0f : radius;
-    if (look_->edge.a > 0.0f)
-        c.list.bordered_rect(r, round, look_->panel, 2.0f, look_->edge);
+    if (look_->edge.a > 0.0f && focus < 1.0f)
+        c.list.bordered_rect(r, round, look_->panel, 2.0f, look_->edge.with_alpha(1.0f - focus));
     else
         c.list.rounded_rect(r, round, look_->panel);
 }
@@ -209,10 +211,10 @@ void Application::draw_art(Canvas &c, const Tile &tile, const Rect &art) const
         c.list.image(it->second, art, hui::gfx::kFullUv, untinted, round);
     }
 }
-void Application::draw_big_tile(Canvas &c, const Rect &r, int index) const
+void Application::draw_big_tile(Canvas &c, const Rect &r, int index, float focus) const
 {
     const auto &tile = tiles_[static_cast<std::size_t>(index)];
-    draw_panel(c, r, kBigRadius);
+    draw_panel(c, r, kBigRadius, focus);
     const Rect art{r.x + 48.0f, r.y + 48.0f, 300.0f, 300.0f};
     if (tile.id.starts_with("@"))
     {
@@ -232,10 +234,10 @@ void Application::draw_big_tile(Canvas &c, const Rect &r, int index) const
     words(c, tile.subtitle, r.x + 48.0f, bottom - static_cast<float>(count) * 78.0f, 32.0f, width,
           look_->muted);
 }
-void Application::draw_grid_tile(Canvas &c, const Rect &r, int index) const
+void Application::draw_grid_tile(Canvas &c, const Rect &r, int index, float focus) const
 {
     const auto &tile = tiles_[static_cast<std::size_t>(index)];
-    draw_panel(c, r, kTileRadius);
+    draw_panel(c, r, kTileRadius, focus);
     const Rect art{r.cx() - 80.0f, r.y + 34.0f, 160.0f, 160.0f};
     if (tile.id.starts_with("@"))
     {
@@ -248,10 +250,10 @@ void Application::draw_grid_tile(Canvas &c, const Rect &r, int index) const
     }
     centred_name(c, tile.title, r.cx(), r.y + 248.0f, 33.0f, r.w - 28.0f, 40.0f, look_->text);
 }
-void Application::draw_dock_tile(Canvas &c, const Rect &r, int index) const
+void Application::draw_dock_tile(Canvas &c, const Rect &r, int index, float focus) const
 {
     const auto &tile = tiles_[static_cast<std::size_t>(index)];
-    draw_panel(c, r, kTileRadius);
+    draw_panel(c, r, kTileRadius, focus);
     draw_glyph(c, tile.id, {r.x + 20.0f, r.cy() - 22.0f, 44.0f, 44.0f}, look_->text);
     words(c, tile.title, r.x + 76.0f, r.cy() + 10.0f, 28.0f, r.w - 90.0f, look_->text, true);
 }
@@ -263,26 +265,26 @@ void Application::draw_deck(Canvas &c) const
     for (int i = 0; i < count; ++i)
     {
         const auto &rect = slots[static_cast<std::size_t>(i)];
-        const float grow =
-            page_ == Page::launcher && !config_.reduced_motion ? deck_.focus_on(i) : 0.0f;
+        const float focus = page_ == Page::launcher ? deck_.focus_on(i) : 0.0f;
+        const float grow = config_.reduced_motion ? 0.0f : focus;
         c.list.push_transform(1.0f + (i == 0 ? 0.008f : 0.02f) * grow, rect.cx(), rect.cy(), 0.0f,
                               0.0f);
         if (i == 0)
         {
-            draw_big_tile(c, rect, i);
+            draw_big_tile(c, rect, i, focus);
         }
         else if (i >= count - kDockTiles)
         {
-            draw_dock_tile(c, rect, i);
+            draw_dock_tile(c, rect, i, focus);
         }
         else
         {
-            draw_grid_tile(c, rect, i);
+            draw_grid_tile(c, rect, i, focus);
             ++(tiles_[static_cast<std::size_t>(i)].id.starts_with("@") ? places : apps);
         }
         c.list.pop_transform();
     }
-    if (apps == 0 && count > 0)
+    if (apps == 0 && count > 0 && ready())
     {
         const auto &free_cell = grid_rect(places - 1);
         words(c, "Apps you open on the LG show up here", free_cell.x + 8.0f, free_cell.cy() + 10.0f,
@@ -294,70 +296,70 @@ void Application::draw_deck(Canvas &c) const
         deck_.draw_ring(c, look_->square ? 0.0f : focus == 0 ? kBigRadius : kTileRadius);
     }
 }
-void Application::draw_app_cell(Canvas &c, const Rect &r, int index) const
+void Application::draw_app_cell(Canvas &c, const Rect &r, int index, float focus) const
 {
     if (index < 0 || index >= static_cast<int>(tiles_.size()))
         return;
     const auto &tile = tiles_[static_cast<std::size_t>(index)];
-    draw_panel(c, r, kTileRadius);
-    draw_art(c, tile, {r.cx() - 54.0f, r.y + 16.0f, 108.0f, 108.0f});
-    words(c, tile.title, r.cx(), r.y + 164.0f, 28.0f, r.w - 24.0f, look_->text, true,
-          Align::center);
+    draw_panel(c, r, kTileRadius, focus);
+    draw_art(c, tile, {r.cx() - 46.0f, r.y + 12.0f, 92.0f, 92.0f});
+    centred_name(c, tile.title, r.cx(), r.y + 132.0f, 27.0f, r.w - 24.0f, 32.0f, look_->text);
     if (!tile.subtitle.empty())
     {
         c.list.circle(r.x + r.w - 32.0f, r.y + 32.0f, 20.0f, look_->accent);
         c.list.star(r.x + r.w - 32.0f, r.y + 32.0f, 13.0f, look_->on_accent);
     }
 }
-void Application::draw_setup_row(Canvas &c, const Rect &r, int index) const
+void Application::draw_setup_row(Canvas &c, const Rect &r, int index, float focus) const
 {
     if (index < 0 || index >= static_cast<int>(setup_rows_.size()))
         return;
     const auto &row = setup_rows_[static_cast<std::size_t>(index)];
-    draw_panel(c, r, 16.0f);
-    const float value = row.value.empty() ? 0.0f : words_width(c, row.value, 26.0f, false) + 24.0f;
+    draw_panel(c, r, 16.0f, focus);
+    const float value = row.value.empty() ? 0.0f : words_width(c, row.value, 30.0f, false) + 24.0f;
     const float room = r.w - 56.0f - std::min(value, 360.0f);
-    words(c, row.title, r.x + 28.0f, r.y + 38.0f, 29.0f, room,
+    words(c, row.title, r.x + 28.0f, r.y + 38.0f, 30.0f, room,
           row.disabled ? look_->muted : look_->text, true);
-    words(c, row.subtitle, r.x + 28.0f, r.y + 71.0f, 23.0f, room, look_->muted);
+    words(c, row.subtitle, r.x + 28.0f, r.y + 73.0f, 27.0f, room, look_->muted);
     if (!row.value.empty())
-        words(c, row.value, r.x + r.w - 28.0f, r.cy() + 9.0f, 26.0f, 340.0f, look_->muted, false,
+        words(c, row.value, r.x + r.w - 28.0f, r.cy() + 10.0f, 30.0f, 340.0f, look_->muted, false,
               Align::right);
 }
 void Application::draw_list_row(Canvas &c, const Rect &row, const hui::ui::ListItem &item,
                                 float focus) const
 {
-    const float pad = 28.0f;
+    draw_panel(c, row, 16.0f, focus);
+    const float pad = 28.0f, size = page_ == Page::quick ? 32.0f : 30.0f;
     const bool stepper = page_ == Page::quick;
     const auto value = stepper ? sentence_case(item.value) : item.value;
     const float title_room =
-        row.w - 2.0f * pad - (value.empty() ? 0.0f : words_width(c, value, 28.0f, stepper) + 90.0f);
+        row.w - 2.0f * pad - (value.empty() ? 0.0f : words_width(c, value, size, stepper) + 90.0f);
     const Color title = item.disabled ? look_->muted : look_->text;
     if (item.subtitle.empty())
     {
-        words(c, item.title, row.x + pad, row.cy() + 11.0f, 30.0f, title_room, title, true);
+        words(c, item.title, row.x + pad, row.cy() + 11.0f, size, title_room, title, true);
     }
     else
     {
-        words(c, item.title, row.x + pad, row.y + 33.0f, 29.0f, title_room, title, true);
-        words(c, item.subtitle, row.x + pad, row.y + 63.0f, 23.0f, title_room, look_->muted);
+        words(c, item.title, row.x + pad, row.y + 35.0f, 30.0f, title_room, title, true);
+        words(c, item.subtitle, row.x + pad, row.y + 69.0f, 27.0f, title_room, look_->muted);
     }
     if (value.empty())
         return;
     const float end = row.x + row.w - pad;
     if (stepper && focus > 0.5f && !item.disabled)
     {
-        const float width = words_width(c, value, 28.0f, true);
+        const float width = words_width(c, value, size, true);
         const Rect after{end - 16.0f, row.cy() - 10.0f, 16.0f, 20.0f};
         const Rect before{end - width - 66.0f, row.cy() - 10.0f, 16.0f, 20.0f};
         c.list.triangle(after, look_->muted, 0.0f, 1.5708f);
         c.list.triangle(before, look_->muted, 0.0f, -1.5708f);
-        words(c, value, end - 33.0f, row.cy() + 10.0f, 28.0f, row.w * 0.5f, look_->text, true,
+        words(c, value, end - 33.0f, row.cy() + 11.0f, size, row.w * 0.5f, look_->text, true,
               Align::right);
         return;
     }
-    words(c, value, end, row.cy() + 10.0f, 28.0f, row.w * 0.5f,
-          stepper ? look_->text : look_->muted, stepper, Align::right);
+    words(c, value, end, row.cy() + 11.0f, size, row.w * 0.5f, stepper ? look_->text : look_->muted,
+          stepper, Align::right);
 }
 void Application::draw_beam(Canvas &c, float x, float cy) const
 {
@@ -375,19 +377,35 @@ void Application::draw_beam(Canvas &c, float x, float cy) const
                       end == BeamEnd::lg ? look_->sky : look_->amber);
     words(c, "LG", from + width + gap, words_y, 27.0f, 60.0f, look_->sky, true);
 }
+// Only what the buttons really do here: Square on an app, Cross where there is something to select.
+std::vector<hui::ui::Hint> Application::foot_hints() const
+{
+    using hui::ui::Hint;
+    if (page_ == Page::remote)
+        return {{Button::circle, "Hold to return"}, {Button::options, "Return to PS5"}};
+    std::vector<Hint> hints;
+    if (page_ == Page::launcher || page_ == Page::apps)
+    {
+        if (!tiles_.empty())
+        {
+            hints.push_back({Button::cross, "Open"});
+            const auto &id = tiles_[static_cast<std::size_t>(tile_focus())].id;
+            if (find_app(id) && launchable(id))
+                hints.push_back({Button::square, "Favourite"});
+        }
+        hints.push_back({Button::options, "Setup"});
+        hints.push_back({Button::circle, page_ == Page::launcher ? "Close" : "Back"});
+        return hints;
+    }
+    if (page_ != Page::help && !(page_ == Page::tvs && snapshot_.tvs.empty()))
+        hints.push_back({Button::cross, "Select"});
+    hints.push_back({Button::circle, "Back"});
+    hints.push_back({Button::options, "Launcher"});
+    return hints;
+}
 void Application::draw_foot(Canvas &c) const
 {
-    std::vector<hui::ui::Hint> hints;
-    if (page_ == Page::remote)
-        hints = {{Button::circle, "Hold to return"}, {Button::options, "Return to PS5"}};
-    else if (page_ == Page::launcher || page_ == Page::apps)
-        hints = {{Button::cross, "Open"},
-                 {Button::square, "Favourite"},
-                 {Button::options, "Setup"},
-                 {Button::circle, page_ == Page::launcher ? "Close" : "Back"}};
-    else
-        hints = {
-            {Button::cross, "Select"}, {Button::circle, "Back"}, {Button::options, "Launcher"}};
+    const auto hints = foot_hints();
     hui::ui::HintLayout layout;
     layout.cy = kFootCentre;
     const int count = static_cast<int>(hints.size());
@@ -396,12 +414,20 @@ void Application::draw_foot(Canvas &c) const
                         layout);
     draw_beam(c, kLeft, kFootCentre);
     const float at = kLeft + 310.0f;
-    const Color colour = !notice_.empty() ? look_->accent : ready() ? look_->text : look_->muted;
+    // Something going wrong looks wrong; connecting and first-run prompts are just quiet.
+    const auto &state = snapshot_.status;
+    const bool waiting = state.starts_with("Connecting") || state.starts_with("Reading") ||
+                         state.starts_with("Enter");
+    const Color colour = !notice_.empty() ? look_->accent
+                         : ready()        ? look_->text
+                         : waiting        ? look_->muted
+                                          : look_->error;
     words(c, live_line(), at, kFootCentre + 10.0f, 29.0f, kRight - at - room - 40.0f, colour, true);
 }
 void Application::draw_sheet(Canvas &c) const
 {
-    c.list.rounded_rect({0.0f, 0.0f, 1920.0f, 1080.0f}, 0.0f, Color::rgb(0x000000, 0.35f));
+    c.list.rounded_rect({0.0f, 0.0f, 1920.0f, 1080.0f}, 0.0f,
+                        Color::rgb(0x000000, look_->dark ? 0.35f : 0.15f));
     c.list.rounded_rect({1040.0f, -40.0f, 960.0f, 1160.0f}, look_->square ? 0.0f : 36.0f,
                         look_->sheet);
     const float x = 1096.0f, width = 730.0f;
@@ -423,8 +449,7 @@ void Application::draw_header(Canvas &c) const
     switch (page_)
     {
     case Page::apps:
-        title = "All LG apps";
-        subtitle = "Select an app to open it on the LG. Square adds a favourite.";
+        title = "All apps";
         break;
     case Page::setup:
         title = "Setup";

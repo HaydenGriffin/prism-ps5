@@ -15,6 +15,18 @@ namespace
 constexpr float kLeft = 96.0f, kTop = 56.0f, kWidth = 1728.0f, kGap = 24.0f;
 constexpr float kBigWidth = 600.0f, kDeckHeight = 720.0f, kDockTop = 800.0f, kDockHeight = 130.0f;
 } // namespace
+std::vector<std::string> grid_order(const std::vector<std::string> &favourites,
+                                    const std::vector<std::string> &recent,
+                                    const std::vector<std::string> &catalog,
+                                    const std::string &big_tile)
+{
+    std::vector<std::string> order;
+    for (const auto *list : {&favourites, &recent, &catalog})
+        for (const auto &id : *list)
+            if (id != big_tile && std::find(order.begin(), order.end(), id) == order.end())
+                order.push_back(id);
+    return order;
+}
 Rect big_tile_rect()
 {
     return {kLeft, kTop, kBigWidth, kDeckHeight};

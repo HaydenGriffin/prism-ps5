@@ -55,9 +55,9 @@ rendered by Prism's own UI code and shaders from a live Home Assistant; see [Pro
 |---|---|
 | <img src="docs/images/screenshots/launcher.png" alt="The Prism launcher on one screen: a big Continue on the LG tile, a grid of favourite and recent LG apps ending in All apps, a dock with LG Home, LG Settings, Quick TV settings, Use as a remote and Setup, and a beam showing the controller is on the PS5"> | <img src="docs/images/tv/lg-settings.jpg" alt="LG Settings open over Prism's remote screen: Picture, Sound, General and Support, with Prism's controls showing through behind it"> |
 
-| All LG apps | Controlling an LG app |
+| All apps | Controlling an LG app |
 |---|---|
-| <img src="docs/images/screenshots/apps.png" alt="All LG apps: Channel 4, Glasshouse, Home Dashboard, Homebrew Channel, House, ITVX, Media Player and Sendspin Cinema"> | <img src="docs/images/screenshots/remote.png" alt="The remote screen over BBC iPlayer: the D-pad moves, Cross selects, Circle goes back, Square plays and pauses, L1 and R1 rewind and fast-forward, Triangle opens LG Home"> |
+| <img src="docs/images/screenshots/apps.png" alt="All apps: four rows of six LG apps, with a star on favourites"> | <img src="docs/images/screenshots/remote.png" alt="The remote screen over BBC iPlayer: the D-pad moves, Cross selects, Circle goes back, Square plays and pauses, L1 and R1 rewind and fast-forward, Triangle opens LG Home"> |
 
 | Game Optimizer from LG Settings, on the TV | Quick TV settings |
 |---|---|

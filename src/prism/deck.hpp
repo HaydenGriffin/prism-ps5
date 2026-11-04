@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "ui/components/component.hpp"
+#include <string>
 #include <vector>
 
 namespace prism
@@ -14,6 +15,12 @@ constexpr int kGridColumns = 4, kGridRows = 2;
 constexpr int kGridApps = kGridColumns * kGridRows - 1;
 constexpr float kFootCentre = 985.0f;
 constexpr float kBigRadius = 28.0f, kTileRadius = 22.0f;
+// The grid's apps in order: favourites, then recently used, then the rest of the TV's apps, each
+// once and never the big tile's.
+std::vector<std::string> grid_order(const std::vector<std::string> &favourites,
+                                    const std::vector<std::string> &recent,
+                                    const std::vector<std::string> &catalog,
+                                    const std::string &big_tile);
 hui::gfx::Rect big_tile_rect();
 hui::gfx::Rect grid_rect(int cell);
 hui::gfx::Rect dock_rect(int index, int count);

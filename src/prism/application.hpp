@@ -9,6 +9,7 @@
 #include "platform/ps5/keyboard.hpp"
 #include "ui/components/grid.hpp"
 #include "ui/components/list.hpp"
+#include "ui/glyphs.hpp"
 #include <functional>
 #include <optional>
 #include <set>
@@ -123,15 +124,21 @@ class Application
     int tile_focus() const;
     BeamEnd beam_end() const;
     void draw_deck(hui::ui::Canvas &canvas) const;
-    void draw_big_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
-    void draw_grid_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
-    void draw_dock_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
-    void draw_app_cell(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
-    void draw_setup_row(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void draw_big_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index,
+                       float focus) const;
+    void draw_grid_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index,
+                        float focus) const;
+    void draw_dock_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index,
+                        float focus) const;
+    void draw_app_cell(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index,
+                       float focus) const;
+    void draw_setup_row(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index,
+                        float focus) const;
     void draw_list_row(hui::ui::Canvas &canvas, const hui::gfx::Rect &row,
                        const hui::ui::ListItem &item, float focus) const;
     void draw_art(hui::ui::Canvas &canvas, const Tile &tile, const hui::gfx::Rect &art) const;
-    void draw_panel(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, float radius) const;
+    void draw_panel(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, float radius,
+                    float focus = 0.0f) const;
     void draw_header(hui::ui::Canvas &canvas) const;
     void draw_sheet(hui::ui::Canvas &canvas) const;
     void draw_remote(hui::ui::Canvas &canvas) const;
@@ -149,6 +156,7 @@ class Application
     const Tv *tv() const;
     const App *find_app(const std::string &id) const;
     std::string app_name(const std::string &id) const;
+    std::vector<hui::ui::Hint> foot_hints() const;
     void follow_lg_surface(const std::string &current, bool generation_changed);
     bool ready() const;
     Config config_;
