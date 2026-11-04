@@ -442,6 +442,17 @@ int main(int argc, char **argv)
     CHECK((grid_order({"a", "b"}, {"c", "a"}, {"c", "d", "e"}, "b") ==
            std::vector<std::string>{"a", "c", "d", "e"}));
     CHECK(grid_order({}, {}, {}, "").empty());
+    // Square only changes favourites on All apps, where the star shows that it worked.
+    Application square(Config::parse(f["config"]));
+    square.receive(snapshot(f));
+    square.open(Page::launcher);
+    const auto chosen = square.config().favourites;
+    tick(square, input(hui::Action::west));
+    CHECK(square.config().favourites == chosen);
+    square.open(Page::apps);
+    tick(square, neutral);
+    tick(square, input(hui::Action::west));
+    CHECK(square.config().favourites != chosen);
     // Forgetting the token takes two presses, and moving away cancels the first.
     Config keep_config = Config::parse(f["config"]);
     Application keep(keep_config);

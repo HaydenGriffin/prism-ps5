@@ -21,6 +21,8 @@ Application::Application(Config c) : config_(std::move(c))
     grid_.style.padding = 12;
     list_.style.highlight.kind = hui::ui::HighlightKind::ring;
     list_.style.cards = false;
+    list_.style.scroll_thumb =
+        false;            // it would touch the focus ring, and a cut row says there is more
     list_.style.gap = 14; // the focus ring reaches 11 past a row, and rows are drawn after it
     list_.style.title_size = 30;
     list_.style.subtitle_size = 24;
@@ -84,7 +86,7 @@ void Application::arrange_page()
     if (page_ == Page::quick)
     {
         list_.style.row_height = 80;
-        list_.set_bounds({1072, 186, 800, 680});
+        list_.set_bounds({1072, 186, 752, 680});
     }
     else
     {
@@ -126,7 +128,7 @@ std::uint64_t Application::dispatch(Command c)
 {
     auto ticket = send ? send(std::move(c)) : 0;
     if (!ticket)
-        notice_ = "Not sent. Check the connection and TV in Setup.";
+        fail("Not sent. Check the connection and TV in Setup.");
     return ticket;
 }
 void Application::receive(Snapshot s)
@@ -166,7 +168,7 @@ void Application::receive(Snapshot s)
         {
             if (!r.ok)
             {
-                notice_ = r.message;
+                fail(r.message);
                 if (r.ticket == launch_ticket_)
                 {
                     launch_target_.clear();
@@ -180,7 +182,10 @@ void Application::receive(Snapshot s)
             for (auto it = pending_edits_.begin(); it != pending_edits_.end();)
                 if (it->second.ticket == r.ticket)
                 {
-                    notice_ = r.ok ? "Setting sent; waiting for the TV" : r.message;
+                    if (r.ok)
+                        notice_ = "Setting sent; waiting for the TV";
+                    else
+                        fail(r.message);
                     if (!r.ok)
                         it = pending_edits_.erase(it);
                     else
@@ -351,9 +356,9 @@ void Application::rebuild()
               config_.reduced_motion ? "On" : "Off");
         setup(SetupRow::vibration, "Controller vibration", "A short rumble on each move",
               config_.vibration ? "On" : "Off");
-        setup(SetupRow::diagnostics, "Input diagnostics", "Controller counts in local status.json",
-              config_.diagnostics ? "On" : "Off");
-        setup(SetupRow::help, "Controls and setup check", "Connection, return shortcut, focus");
+        setup(SetupRow::diagnostics, "Input diagnostics",
+              "Logs controller counts for troubleshooting", config_.diagnostics ? "On" : "Off");
+        setup(SetupRow::help, "Setup check", "Connection, return shortcut, focus");
         setup(SetupRow::disconnect, "Disconnect and forget token", "Keeps the TV and favourites");
         setup(SetupRow::close, "Close Prism", "Return to the PS5 home screen");
         setup_rows_ = rows;
@@ -397,6 +402,12 @@ void Application::rebuild()
         list_.set_items(std::move(rows));
         list_.set_focus(focus);
     }
+}
+// A notice that something did not work, which looks it from across the room.
+void Application::fail(std::string message)
+{
+    notice_ = message;
+    failed_notice_ = std::move(message);
 }
 void Application::disarm_disconnect()
 {
@@ -579,7 +590,7 @@ void Application::launch(const std::string &id)
 {
     if (!ready() || config_.input.empty() || config_.input_app.empty())
     {
-        notice_ = "Choose a TV and capture the PS5 input in Setup first.";
+        fail("Choose a TV and capture the PS5 input in Setup first.");
         return;
     }
     Command command;
@@ -591,7 +602,7 @@ void Application::launch(const std::string &id)
         // Settings is not always listed; Glasshouse still launches it by its usual name.
         if (!app && id != "com.palm.app.settings")
         {
-            notice_ = "This app is not in the TV's current catalogue.";
+            fail("This app is not in the TV's current catalogue.");
             return;
         }
         command = select(tv()->role("app"), app ? app->title : "Settings");
@@ -610,12 +621,12 @@ void Application::return_to_ps5()
 {
     if (!ready())
     {
-        notice_ = "Reconnect to Home Assistant to return to the PS5. The LG remote still works.";
+        fail("Reconnect to Home Assistant to return to the PS5. The LG remote still works.");
         return;
     }
     if (config_.input.empty())
     {
-        notice_ = "The PS5 input is not set. Use the LG remote, then capture it in Setup.";
+        fail("The PS5 input is not set. Use the LG remote, then capture it in Setup.");
         return;
     }
     if (cancel_transient)
@@ -686,7 +697,7 @@ void Application::keyboard_result(const hui::ps5::KeyboardOutcome &result)
         test.token = "validation";
         if (!test.configured())
         {
-            notice_ = "Use a numeric IPv4 address, such as 192.0.2.20.";
+            fail("Use a numeric IPv4 address, such as 192.0.2.20.");
             return;
         }
         config_.host = result.text;
@@ -695,7 +706,7 @@ void Application::keyboard_result(const hui::ps5::KeyboardOutcome &result)
     {
         if (result.text.empty())
         {
-            notice_ = "The token cannot be empty.";
+            fail("The token cannot be empty.");
             return;
         }
         config_.token = result.text;
@@ -706,7 +717,7 @@ void Application::keyboard_result(const hui::ps5::KeyboardOutcome &result)
         long port = std::strtol(result.text.c_str(), &end, 10);
         if (port < 1 || port > 65535 || !end || *end)
         {
-            notice_ = "Port must be between 1 and 65535.";
+            fail("Port must be between 1 and 65535.");
             return;
         }
         config_.port = static_cast<int>(port);
@@ -718,7 +729,7 @@ void Application::keyboard_result(const hui::ps5::KeyboardOutcome &result)
                 true)
             dispatch({tv()->role("keyboard_text"), "set_value", {{"value", result.text}}});
         else
-            notice_ = "The LG text field is no longer focused. Nothing was sent.";
+            fail("The LG text field is no longer focused. Nothing was sent.");
         return;
     }
     persist();
@@ -750,7 +761,7 @@ void Application::activate(int index)
                 notice_ = "Remote ready. Hold Circle to return to the PS5.";
             }
             else
-                notice_ = "Complete the TV and PS5 input steps in Setup first.";
+                fail("Complete the TV and PS5 input steps in Setup first.");
         }
         else
             launch(id);
@@ -787,7 +798,7 @@ void Application::activate(int index)
                 auto id = text(active.attributes, "app_id");
                 if (!input.available() || !id.starts_with("com.webos.app.hdmi"))
                 {
-                    notice_ = "Show the PS5's HDMI input on the TV, then try again.";
+                    fail("Show the PS5's HDMI input on the TV, then try again.");
                     break;
                 }
                 config_.input = input.state;
@@ -954,7 +965,7 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
     for (auto it = pending_edits_.begin(); it != pending_edits_.end();)
         if (now_ > it->second.due)
         {
-            notice_ = "The TV did not confirm the setting. Showing its reported value.";
+            fail("The TV did not confirm the setting. Showing its reported value.");
             it = pending_edits_.erase(it);
             rebuild();
         }
@@ -993,7 +1004,7 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
             {
                 launch_deadline_ = 0;
                 launch_target_.clear();
-                notice_ = "The TV did not confirm the app. Hold Circle to return.";
+                fail("The TV did not confirm the app. Hold Circle to return.");
             }
         }
         if (returning_)
@@ -1010,7 +1021,7 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
             if (now_ > return_deadline_)
             {
                 returning_ = false;
-                notice_ = "The TV did not confirm the PS5 input. Try again or use the LG remote.";
+                fail("The TV did not confirm the PS5 input. Try again or use the LG remote.");
             }
             else if (ready() && now_ >= return_next_ && return_backs_ < 8 &&
                      overlay_on_input(*tv(), snapshot_.states, config_.input_app))
@@ -1086,7 +1097,8 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
         return;
     if (page_ == Page::launcher || page_ == Page::apps)
     {
-        if (input.is_pressed(Action::west) && !tiles_.empty())
+        // Only All apps shows the star that says whether it worked.
+        if (page_ == Page::apps && input.is_pressed(Action::west) && !tiles_.empty())
         {
             const auto &id = tiles_[static_cast<std::size_t>(tile_focus())].id;
             if (find_app(id) && launchable(id))

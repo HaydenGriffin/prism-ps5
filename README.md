@@ -118,7 +118,7 @@ cancel it.
 
 ## Controls
 
-On Prism's own screens, the D-pad or left stick moves, Cross opens, Square adds or removes a favourite, Options
+On Prism's own screens, the D-pad or left stick moves, Cross opens, Square adds or removes a favourite on All apps, Options
 opens Setup, and Circle goes back (on the launcher, it asks to close Prism). L1 and R1 reorder favourites.
 
 While the DualSense drives the LG:

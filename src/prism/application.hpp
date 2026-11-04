@@ -118,6 +118,7 @@ class Application
     // A list row's tag on the Favourites page: this app is one.
     static constexpr int kFavouriteRow = 1;
     void rebuild();
+    void fail(std::string message);
     void disarm_disconnect();
     void build_deck();
     void setup_view();
@@ -183,7 +184,7 @@ class Application
     std::optional<Edit> edit_;
     std::map<std::string, Edit> pending_edits_;
     std::set<std::uint64_t> handled_results_;
-    std::string notice_, storage_status_, last_target_, launch_target_;
+    std::string notice_, failed_notice_, storage_status_, last_target_, launch_target_;
     std::int64_t now_ = 0, launch_deadline_ = 0, return_deadline_ = 0, return_next_ = 0;
     std::uint64_t launch_ticket_ = 0, return_ticket_ = 0, generation_ = 0, presses_ = 0,
                   forwarded_ = 0;

@@ -100,14 +100,14 @@ void draw_glyph(Canvas &c, const std::string &id, const Rect &box, Color color)
     {
         // A gear: a toothed ring round a small hub.
         const float cx = box.x + 24.0f * s, cy = box.y + 24.0f * s;
-        c.list.ring(cx, cy, 13.0f * s, stroke, color);
-        c.list.ring(cx, cy, 4.5f * s, stroke * 0.8f, color);
+        c.list.ring(cx, cy, 12.0f * s, stroke * 1.5f, color);
+        c.list.ring(cx, cy, 3.5f * s, stroke * 0.8f, color);
         for (int i = 0; i < 8; ++i)
         {
             const float angle = static_cast<float>(i) * 0.7854f;
             const float dx = std::sin(angle) * s, dy = -std::cos(angle) * s;
-            c.list.line(cx + dx * 14.0f, cy + dy * 14.0f, cx + dx * 19.0f, cy + dy * 19.0f,
-                        stroke * 1.6f, color);
+            c.list.line(cx + dx * 14.0f, cy + dy * 14.0f, cx + dx * 18.0f, cy + dy * 18.0f,
+                        stroke * 2.0f, color);
         }
     }
     else if (id == "@quick")
@@ -391,7 +391,7 @@ std::vector<hui::ui::Hint> Application::foot_hints() const
         {
             hints.push_back({Button::cross, "Open"});
             const auto &id = tiles_[static_cast<std::size_t>(tile_focus())].id;
-            if (find_app(id) && launchable(id))
+            if (page_ == Page::apps && find_app(id) && launchable(id))
                 hints.push_back({Button::square, "Favourite"});
         }
         hints.push_back({Button::options, "Setup"});
@@ -419,10 +419,11 @@ void Application::draw_foot(Canvas &c) const
     const auto &state = snapshot_.status;
     const bool waiting = state.starts_with("Connecting") || state.starts_with("Reading") ||
                          state.starts_with("Enter");
-    const Color colour = !notice_.empty() ? look_->accent
-                         : ready()        ? look_->text
-                         : waiting        ? look_->muted
-                                          : look_->error;
+    const Color colour = !notice_.empty()
+                             ? (notice_ == failed_notice_ ? look_->error : look_->accent)
+                         : ready() ? look_->text
+                         : waiting ? look_->muted
+                                   : look_->error;
     words(c, live_line(), at, kFootCentre + 10.0f, 29.0f, kRight - at - room - 40.0f, colour, true);
 }
 void Application::draw_sheet(Canvas &c) const
@@ -436,7 +437,8 @@ void Application::draw_sheet(Canvas &c) const
     if (notice_.empty())
         words(c, "Left and Right change a value", x, 150.0f, 26.0f, width, look_->muted);
     else
-        words(c, notice_, x, 150.0f, 26.0f, width, look_->accent);
+        words(c, notice_, x, 150.0f, 26.0f, width,
+              notice_ == failed_notice_ ? look_->error : look_->accent);
     list_.draw(c);
     const hui::ui::Hint hints[] = {{Button::dpad, "Change value"}, {Button::circle, "Back"}};
     hui::ui::HintLayout layout;
