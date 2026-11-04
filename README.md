@@ -27,7 +27,7 @@ which does the same from an Android TV box's remote.
 - **A launcher for the LG, all on one screen.** The last LG app you used as a big "Continue on the LG" tile, your
   favourites and recently used apps beside it with their own LG icons, All apps, and a dock with LG Home, LG
   Settings, Quick TV settings, the remote and Setup. Nothing needs scrolling. The grid shows the first seven apps,
-  favourites before recent ones, and the rest stay in All apps.
+  favourites first, then recent ones, then the TV's others, and the rest stay in All apps.
 - **Quick TV settings.** Input, picture mode, OLED brightness, energy saving, sound mode, sleep timer and logo
   dimming, changed with Left and Right on a sheet over the launcher, so a picture change shows on the tiles behind it.
   A change is sent half a second after the last step.
