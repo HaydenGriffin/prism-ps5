@@ -1,4 +1,4 @@
-// Prism - TV-safe native screens, preserving Prism's dark palette and cyan focus.
+// Prism - The native screens: one compact line of chrome, and everything else for the content.
 // Copyright (C) 2026 Hayden Griffin
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "prism/application.hpp"
@@ -7,115 +7,441 @@
 
 namespace prism
 {
-using hui::gfx::Color;
+using hui::gfx::Align;
 using hui::gfx::Rect;
 using hui::ui::Button;
+using hui::ui::Canvas;
 namespace
 {
-constexpr auto paper = Color::rgb(0xf5f4ef), muted = Color::rgb(0xb9bec5),
-               accent = Color::rgb(0x7bdafa), surface = Color::rgb(0x181b20);
-void label(hui::ui::Canvas &c, const std::string &s, float x, float y, float size, float width,
-           Color color = paper, bool bold = false)
+constexpr float kLeft = 96.0f, kRight = 1824.0f;
+constexpr int kDockTiles = 5;
+const hui::ui::FontRef &face(const Canvas &c, bool bold)
 {
-    const auto &font = bold ? c.fonts.semibold : c.fonts.regular;
-    hui::ui::text(c.list, font, font.font->fit(s, size, width), x, y, size, color);
+    return bold ? c.fonts.semibold : c.fonts.regular;
+}
+const hui::ui::FontRef &numerals(const Canvas &c, bool bold)
+{
+    return bold ? c.fonts.display : c.fonts.mono;
+}
+float words_width(const Canvas &c, std::string_view s, float size, bool bold)
+{
+    float width = 0.0f;
+    for (const auto &run : digit_runs(s))
+        width += (run.digits ? numerals(c, bold) : face(c, bold)).measure(run.text, size);
+    return width;
+}
+// One line of text, cut to fit `width`, with its digits in Lexend. Returns the width drawn.
+float words(Canvas &c, std::string_view s, float x, float y, float size, float width, Color color,
+            bool bold = false, Align align = Align::left)
+{
+    std::string fitted(s);
+    if (words_width(c, fitted, size, bold) > width)
+        fitted = face(c, bold).font->fit(s, size, width);
+    const float drawn = words_width(c, fitted, size, bold);
+    float at = align == Align::center ? x - drawn * 0.5f : align == Align::right ? x - drawn : x;
+    for (const auto &run : digit_runs(fitted))
+        at += hui::ui::text(c.list, run.digits ? numerals(c, bold) : face(c, bold), run.text, at, y,
+                            size, color);
+    return drawn;
+}
+void paragraph(Canvas &c, std::string_view s, float x, float y, float size, float width,
+               float leading, Color color, int lines)
+{
+    const auto wrapped = face(c, false).font->wrap(s, size, width);
+    for (int i = 0; i < std::min(lines, static_cast<int>(wrapped.size())); ++i)
+        words(c, wrapped[static_cast<std::size_t>(i)], x, y + static_cast<float>(i) * leading, size,
+              width, color);
+}
+// A name on up to two lines, centred on x, the first baseline at y.
+void centred_name(Canvas &c, const std::string &s, float x, float y, float size, float width,
+                  float leading, Color color)
+{
+    const auto lines = face(c, true).font->wrap(s, size, width);
+    if (lines.size() < 2)
+    {
+        words(c, s, x, y + leading * 0.5f, size, width, color, true, Align::center);
+        return;
+    }
+    words(c, lines[0], x, y, size, width, color, true, Align::center);
+    std::string rest = lines[1];
+    for (std::size_t i = 2; i < lines.size(); ++i)
+        rest += " " + lines[i];
+    words(c, rest, x, y + leading, size, width, color, true, Align::center);
+}
+// The line icons of the tiles that are places rather than apps, drawn on a 48-unit grid.
+void draw_glyph(Canvas &c, const std::string &id, const Rect &box, Color color)
+{
+    const float s = box.w / 48.0f, stroke = 3.5f * s;
+    const auto line = [&](float x1, float y1, float x2, float y2)
+    { c.list.line(box.x + x1 * s, box.y + y1 * s, box.x + x2 * s, box.y + y2 * s, stroke, color); };
+    const auto square = [&](float x, float y, float w, float h, float radius)
+    {
+        c.list.bordered_rect({box.x + x * s, box.y + y * s, w * s, h * s}, radius * s,
+                             Color{0.0f, 0.0f, 0.0f, 0.0f}, stroke, color);
+    };
+    const auto dot = [&](float x, float y, float radius)
+    { c.list.circle(box.x + x * s, box.y + y * s, radius * s, color); };
+    if (id == "@apps")
+    {
+        for (int i = 0; i < 4; ++i)
+            square(9.0f + static_cast<float>(i % 2) * 18.0f,
+                   9.0f + static_cast<float>(i / 2) * 18.0f, 12.0f, 12.0f, 2.0f);
+    }
+    else if (id == "@home")
+    {
+        line(8, 23, 24, 9);
+        line(24, 9, 40, 23);
+        line(13, 20, 13, 39);
+        line(13, 39, 35, 39);
+        line(35, 39, 35, 20);
+    }
+    else if (id == "@settings")
+    {
+        c.list.ring(box.x + 24.0f * s, box.y + 24.0f * s, 8.5f * s, stroke, color);
+        line(24, 6, 24, 13);
+        line(24, 35, 24, 42);
+        line(6, 24, 13, 24);
+        line(35, 24, 42, 24);
+        line(11, 11, 16, 16);
+        line(32, 32, 37, 37);
+        line(37, 11, 32, 16);
+        line(16, 32, 11, 37);
+    }
+    else if (id == "@quick")
+    {
+        line(7, 13, 41, 13);
+        line(7, 24, 41, 24);
+        line(7, 35, 41, 35);
+        dot(16, 13, 5);
+        dot(32, 24, 5);
+        dot(20, 35, 5);
+    }
+    else if (id == "@remote")
+    {
+        const float x[] = {18, 30, 30, 41, 41, 30, 30, 18, 18, 7, 7, 18};
+        const float y[] = {7, 7, 18, 18, 30, 30, 41, 41, 30, 30, 18, 18};
+        for (int i = 0; i < 12; ++i)
+            line(x[i], y[i], x[(i + 1) % 12], y[(i + 1) % 12]);
+    }
+    else if (id == "@setup" || id == "@connect")
+    {
+        square(14, 5, 20, 38, 6);
+        c.list.ring(box.x + 24.0f * s, box.y + 15.0f * s, 3.5f * s, stroke * 0.8f, color);
+        line(20, 27, 28, 27);
+        line(20, 34, 28, 34);
+    }
+    else
+    {
+        c.list.star(box.x + 24.0f * s, box.y + 24.0f * s, 19.0f * s, color, stroke);
+    }
+}
+hui::ui::GlyphStyle glyph_style(const Look &look)
+{
+    if (look.square)
+        return hui::ui::GlyphStyle::mono(look.text, look.panel);
+    return look.dark ? hui::ui::GlyphStyle::dark() : hui::ui::GlyphStyle::light();
+}
+// Glasshouse's #rrggbb, or nothing.
+bool parse_colour(const std::string &hex, Color &out)
+{
+    if (hex.size() != 7 || hex[0] != '#')
+        return false;
+    char *end = nullptr;
+    const auto rgb = std::strtoul(hex.c_str() + 1, &end, 16);
+    if (!end || *end)
+        return false;
+    out = Color::rgb(static_cast<std::uint32_t>(rgb));
+    return true;
+}
+std::string sentence_case(std::string value)
+{
+    if (!value.empty() && value[0] >= 'a' && value[0] <= 'z')
+        value[0] = static_cast<char>(value[0] - 'a' + 'A');
+    return value;
 }
 } // namespace
 void Application::setup_view()
 {
-    grid_.content = [this](hui::ui::Canvas &c, const Rect &r, const hui::ui::CardItem &, int index,
-                           float) { draw_tile(c, r, index); };
+    grid_.content = [this](Canvas &c, const Rect &r, const hui::ui::CardItem &, int index, float)
+    {
+        if (page_ == Page::setup)
+            draw_setup_row(c, r, index);
+        else
+            draw_app_cell(c, r, index);
+    };
+    list_.content = [this](Canvas &c, const Rect &r, const hui::ui::ListItem &item, int,
+                           float focus) { draw_list_row(c, r, item, focus); };
 }
-void Application::draw_tile(hui::ui::Canvas &c, const Rect &r, int index) const
+void Application::draw_panel(Canvas &c, const Rect &r, float radius) const
+{
+    const float round = look_->square ? 0.0f : radius;
+    if (look_->edge.a > 0.0f)
+        c.list.bordered_rect(r, round, look_->panel, 2.0f, look_->edge);
+    else
+        c.list.rounded_rect(r, round, look_->panel);
+}
+// An app's art on the app's own colour; its initial until the icon arrives, or if it never does.
+void Application::draw_art(Canvas &c, const Tile &tile, const Rect &art) const
+{
+    const float round = look_->square ? 0.0f : art.w * 0.2f;
+    Color ground = Color::rgb(0x28343d);
+    const bool coloured = parse_colour(tile.color, ground);
+    const auto it = textures_.find(tile.icon);
+    if (it == textures_.end())
+    {
+        c.list.rounded_rect(art, round, ground);
+        const auto initial = tile.title.empty() ? std::string("?") : tile.title.substr(0, 1);
+        const float size = art.w * 0.52f;
+        words(c, initial, art.cx(), art.cy() + size * 0.36f, size, art.w,
+              luminance(ground) > 0.45 ? Color::rgb(0x16181d) : Color::rgb(0xf4f2ee), true,
+              Align::center);
+        return;
+    }
+    const Color untinted{1.0f, 1.0f, 1.0f, 1.0f};
+    if (coloured)
+    {
+        c.list.rounded_rect(art, round, ground);
+        c.list.image(it->second, art.inset(art.w * 0.08f), hui::gfx::kFullUv, untinted,
+                     round * 0.7f);
+    }
+    else
+    {
+        c.list.image(it->second, art, hui::gfx::kFullUv, untinted, round);
+    }
+}
+void Application::draw_big_tile(Canvas &c, const Rect &r, int index) const
+{
+    const auto &tile = tiles_[static_cast<std::size_t>(index)];
+    draw_panel(c, r, kBigRadius);
+    const Rect art{r.x + 48.0f, r.y + 48.0f, 300.0f, 300.0f};
+    if (tile.id.starts_with("@"))
+    {
+        c.list.rounded_rect(art, look_->square ? 0.0f : 60.0f, look_->raised);
+        draw_glyph(c, tile.id, art.inset(70.0f), look_->text);
+    }
+    else
+    {
+        draw_art(c, tile, art);
+    }
+    const float size = 68.0f, width = r.w - 96.0f, bottom = r.y + r.h - 48.0f;
+    const auto lines = face(c, true).font->wrap(tile.title, size, width);
+    const int count = std::min(2, static_cast<int>(lines.size()));
+    for (int i = 0; i < count; ++i)
+        words(c, lines[static_cast<std::size_t>(i)], r.x + 48.0f,
+              bottom - static_cast<float>(count - 1 - i) * 78.0f, size, width, look_->text, true);
+    words(c, tile.subtitle, r.x + 48.0f, bottom - static_cast<float>(count) * 78.0f, 32.0f, width,
+          look_->muted);
+}
+void Application::draw_grid_tile(Canvas &c, const Rect &r, int index) const
+{
+    const auto &tile = tiles_[static_cast<std::size_t>(index)];
+    draw_panel(c, r, kTileRadius);
+    const Rect art{r.cx() - 80.0f, r.y + 34.0f, 160.0f, 160.0f};
+    if (tile.id.starts_with("@"))
+    {
+        c.list.rounded_rect(art, look_->square ? 0.0f : 32.0f, look_->raised);
+        draw_glyph(c, tile.id, art.inset(36.0f), look_->text);
+    }
+    else
+    {
+        draw_art(c, tile, art);
+    }
+    centred_name(c, tile.title, r.cx(), r.y + 248.0f, 33.0f, r.w - 28.0f, 40.0f, look_->text);
+}
+void Application::draw_dock_tile(Canvas &c, const Rect &r, int index) const
+{
+    const auto &tile = tiles_[static_cast<std::size_t>(index)];
+    draw_panel(c, r, kTileRadius);
+    draw_glyph(c, tile.id, {r.x + 20.0f, r.cy() - 22.0f, 44.0f, 44.0f}, look_->text);
+    words(c, tile.title, r.x + 76.0f, r.cy() + 10.0f, 28.0f, r.w - 90.0f, look_->text, true);
+}
+void Application::draw_deck(Canvas &c) const
+{
+    const auto &slots = deck_.slots();
+    const int count = static_cast<int>(slots.size());
+    int apps = 0, places = 0;
+    for (int i = 0; i < count; ++i)
+    {
+        const auto &rect = slots[static_cast<std::size_t>(i)];
+        const float grow =
+            page_ == Page::launcher && !config_.reduced_motion ? deck_.focus_on(i) : 0.0f;
+        c.list.push_transform(1.0f + (i == 0 ? 0.008f : 0.02f) * grow, rect.cx(), rect.cy(), 0.0f,
+                              0.0f);
+        if (i == 0)
+        {
+            draw_big_tile(c, rect, i);
+        }
+        else if (i >= count - kDockTiles)
+        {
+            draw_dock_tile(c, rect, i);
+        }
+        else
+        {
+            draw_grid_tile(c, rect, i);
+            ++(tiles_[static_cast<std::size_t>(i)].id.starts_with("@") ? places : apps);
+        }
+        c.list.pop_transform();
+    }
+    if (apps == 0 && count > 0)
+    {
+        const auto &free_cell = grid_rect(places - 1);
+        words(c, "Apps you open on the LG show up here", free_cell.x + 8.0f, free_cell.cy() + 10.0f,
+              30.0f, kRight - free_cell.x - 8.0f, look_->muted);
+    }
+    if (page_ == Page::launcher)
+    {
+        const int focus = deck_.focus();
+        deck_.draw_ring(c, look_->square ? 0.0f : focus == 0 ? kBigRadius : kTileRadius);
+    }
+}
+void Application::draw_app_cell(Canvas &c, const Rect &r, int index) const
 {
     if (index < 0 || index >= static_cast<int>(tiles_.size()))
         return;
     const auto &tile = tiles_[static_cast<std::size_t>(index)];
-    c.list.rounded_rect(r, 20, surface);
-    Rect icon{r.x + 24, r.y + 24, 90, 90};
-    auto it = textures_.find(tile.icon);
-    if (it != textures_.end())
-        c.list.image(it->second, icon, hui::gfx::kFullUv, paper, 14);
-    else if (tile.id.starts_with("@"))
+    draw_panel(c, r, kTileRadius);
+    draw_art(c, tile, {r.cx() - 54.0f, r.y + 16.0f, 108.0f, 108.0f});
+    words(c, tile.title, r.cx(), r.y + 164.0f, 28.0f, r.w - 24.0f, look_->text, true,
+          Align::center);
+    if (!tile.subtitle.empty())
     {
-        const auto color = accent;
-        const float x = icon.x + 20, y = icon.y + 18;
-        if (tile.id == "@apps")
-        {
-            for (int i = 0; i < 4; i++)
-                c.list.bordered_rect({x + (i % 2) * 28.0f, y + (i / 2) * 28.0f, 20, 20}, 3,
-                                     Color::rgb(0x181b20), 3, color);
-        }
-        else if (tile.id == "@home")
-        {
-            c.list.line(x, y + 25, x + 24, y + 3, 4, color);
-            c.list.line(x + 24, y + 3, x + 48, y + 25, 4, color);
-            c.list.bordered_rect({x + 8, y + 25, 32, 30}, 2, surface, 3, color);
-        }
-        else if (tile.id == "@remote")
-        {
-            c.list.rounded_rect({x + 17, y, 18, 56}, 4, color);
-            c.list.rounded_rect({x - 2, y + 19, 56, 18}, 4, color);
-        }
-        else
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                c.list.line(x, y + i * 23.0f, x + 54, y + i * 23.0f, 3, color);
-                c.list.circle(x + (i % 2 ? 38 : 14), y + i * 23.0f, 6, color);
-            }
-        }
+        c.list.circle(r.x + r.w - 32.0f, r.y + 32.0f, 20.0f, look_->accent);
+        c.list.star(r.x + r.w - 32.0f, r.y + 32.0f, 13.0f, look_->on_accent);
+    }
+}
+void Application::draw_setup_row(Canvas &c, const Rect &r, int index) const
+{
+    if (index < 0 || index >= static_cast<int>(setup_rows_.size()))
+        return;
+    const auto &row = setup_rows_[static_cast<std::size_t>(index)];
+    draw_panel(c, r, 16.0f);
+    const float value = row.value.empty() ? 0.0f : words_width(c, row.value, 26.0f, false) + 24.0f;
+    const float room = r.w - 56.0f - std::min(value, 360.0f);
+    words(c, row.title, r.x + 28.0f, r.y + 38.0f, 29.0f, room,
+          row.disabled ? look_->muted : look_->text, true);
+    words(c, row.subtitle, r.x + 28.0f, r.y + 71.0f, 23.0f, room, look_->muted);
+    if (!row.value.empty())
+        words(c, row.value, r.x + r.w - 28.0f, r.cy() + 9.0f, 26.0f, 340.0f, look_->muted, false,
+              Align::right);
+}
+void Application::draw_list_row(Canvas &c, const Rect &row, const hui::ui::ListItem &item,
+                                float focus) const
+{
+    const float pad = 28.0f;
+    const bool stepper = page_ == Page::quick;
+    const auto value = stepper ? sentence_case(item.value) : item.value;
+    const float title_room =
+        row.w - 2.0f * pad - (value.empty() ? 0.0f : words_width(c, value, 28.0f, stepper) + 90.0f);
+    const Color title = item.disabled ? look_->muted : look_->text;
+    if (item.subtitle.empty())
+    {
+        words(c, item.title, row.x + pad, row.cy() + 11.0f, 30.0f, title_room, title, true);
     }
     else
     {
-        Color bg = Color::rgb(0x28343d);
-        if (tile.color.size() == 7 && tile.color[0] == '#')
-        {
-            char *end = nullptr;
-            auto rgb = std::strtoul(tile.color.c_str() + 1, &end, 16);
-            if (end && !*end)
-                bg = Color::rgb(static_cast<std::uint32_t>(rgb));
-        }
-        c.list.rounded_rect(icon, 16, bg);
-        auto initial = tile.title.empty() ? "?" : tile.title.substr(0, 1);
-        const float luminance = bg.r * .2126f + bg.g * .7152f + bg.b * .0722f;
-        label(c, initial, icon.x + 28, icon.y + 62, 50, 60,
-              luminance > .55f ? Color::rgb(0x101214) : paper, true);
+        words(c, item.title, row.x + pad, row.y + 33.0f, 29.0f, title_room, title, true);
+        words(c, item.subtitle, row.x + pad, row.y + 63.0f, 23.0f, title_room, look_->muted);
     }
-    label(c, tile.title, r.x + 24, r.y + 160, 32, r.w - 48, paper, true);
-    label(c, tile.subtitle, r.x + 24, r.y + 201, 25, r.w - 48,
-          tile.subtitle == "Continue on the LG" ? accent : muted);
+    if (value.empty())
+        return;
+    const float end = row.x + row.w - pad;
+    if (stepper && focus > 0.5f && !item.disabled)
+    {
+        const float width = words_width(c, value, 28.0f, true);
+        const Rect after{end - 16.0f, row.cy() - 10.0f, 16.0f, 20.0f};
+        const Rect before{end - width - 66.0f, row.cy() - 10.0f, 16.0f, 20.0f};
+        c.list.triangle(after, look_->muted, 0.0f, 1.5708f);
+        c.list.triangle(before, look_->muted, 0.0f, -1.5708f);
+        words(c, value, end - 33.0f, row.cy() + 10.0f, 28.0f, row.w * 0.5f, look_->text, true,
+              Align::right);
+        return;
+    }
+    words(c, value, end, row.cy() + 10.0f, 28.0f, row.w * 0.5f,
+          stepper ? look_->text : look_->muted, stepper, Align::right);
 }
-void Application::draw(hui::ui::Canvas &c) const
+void Application::draw_beam(Canvas &c, float x, float cy) const
 {
-    c.list.rounded_rect({0, 0, 1920, 1080}, 0, Color::rgb(0x0d0f10));
-    std::string title = "Prism", subtitle;
+    const BeamEnd end = beam_end();
+    const float words_y = cy + 9.0f, gap = 28.0f, width = 146.0f;
+    const float from = x + words(c, "PS5", x, words_y, 27.0f, 80.0f, look_->amber, true) + gap;
+    const float dim = end == BeamEnd::none ? 0.35f : 1.0f;
+    c.list.gradient_rect_h({from, cy - 2.0f, width, 4.0f}, 2.0f, look_->amber.with_alpha(dim),
+                           look_->sky.with_alpha(dim));
+    const Rect prism{from + width * 0.5f - 15.0f, cy - 15.0f, 30.0f, 26.0f};
+    c.list.triangle(prism, look_->sheet);
+    c.list.triangle(prism, look_->text, 3.0f);
+    if (end != BeamEnd::none)
+        c.list.circle(from + width * beam_along_, cy, 11.0f,
+                      end == BeamEnd::lg ? look_->sky : look_->amber);
+    words(c, "LG", from + width + gap, words_y, 27.0f, 60.0f, look_->sky, true);
+}
+void Application::draw_foot(Canvas &c) const
+{
+    std::vector<hui::ui::Hint> hints;
+    if (page_ == Page::remote)
+        hints = {{Button::circle, "Hold to return"}, {Button::options, "Return to PS5"}};
+    else if (page_ == Page::launcher || page_ == Page::apps)
+        hints = {{Button::cross, "Open"},
+                 {Button::square, "Favourite"},
+                 {Button::options, "Setup"},
+                 {Button::circle, page_ == Page::launcher ? "Close" : "Back"}};
+    else
+        hints = {
+            {Button::cross, "Select"}, {Button::circle, "Back"}, {Button::options, "Launcher"}};
+    hui::ui::HintLayout layout;
+    layout.cy = kFootCentre;
+    const int count = static_cast<int>(hints.size());
+    const float room = hui::ui::measure_hints(c.fonts, hints.data(), count, layout);
+    hui::ui::draw_hints(c.list, c.fonts, glyph_style(*look_), hints.data(), count, kRight, true,
+                        layout);
+    draw_beam(c, kLeft, kFootCentre);
+    const float at = kLeft + 310.0f;
+    const Color colour = !notice_.empty() ? look_->accent : ready() ? look_->text : look_->muted;
+    words(c, live_line(), at, kFootCentre + 10.0f, 29.0f, kRight - at - room - 40.0f, colour, true);
+}
+void Application::draw_sheet(Canvas &c) const
+{
+    c.list.rounded_rect({0.0f, 0.0f, 1920.0f, 1080.0f}, 0.0f, Color::rgb(0x000000, 0.35f));
+    c.list.rounded_rect({1040.0f, -40.0f, 960.0f, 1160.0f}, look_->square ? 0.0f : 36.0f,
+                        look_->sheet);
+    const float x = 1096.0f, width = 730.0f;
+    words(c, "Quick TV settings", x, 104.0f, 46.0f, width, look_->text, true);
+    if (notice_.empty())
+        words(c, "Left and Right change a value, sent when you pause", x, 150.0f, 26.0f, width,
+              look_->muted);
+    else
+        words(c, notice_, x, 150.0f, 26.0f, width, look_->accent);
+    list_.draw(c);
+    const hui::ui::Hint hints[] = {{Button::dpad, "Change value"}, {Button::circle, "Back"}};
+    hui::ui::HintLayout layout;
+    layout.cy = kFootCentre;
+    hui::ui::draw_hints(c.list, c.fonts, glyph_style(*look_), hints, 2, x, false, layout);
+}
+void Application::draw_header(Canvas &c) const
+{
+    std::string title, subtitle;
     switch (page_)
     {
-    case Page::launcher:
-        subtitle = tv() ? tv()->name + " · PS5 on " +
-                              (config_.input.empty() ? "an input to choose" : config_.input)
-                        : "Your LG apps, with the controller already in your hands";
-        break;
     case Page::apps:
         title = "All LG apps";
         subtitle = "Select an app to open it on the LG. Square adds a favourite.";
         break;
     case Page::setup:
         title = "Setup";
-        subtitle = "One connection. One TV. A way back to your PS5.";
-        break;
-    case Page::quick:
-        title = "Quick TV settings";
-        subtitle = "Left and Right change a value. It is sent after half a second.";
+        subtitle =
+            "Enter the local IPv4 address and a long-lived token, connect, choose the TV, then "
+            "save the input while the PS5 shows.";
         break;
     case Page::tvs:
         title = "Choose your TV";
-        subtitle = "Glasshouse TVs found in Home Assistant";
+        subtitle = snapshot_.tvs.empty()
+                       ? "Glasshouse TVs found in Home Assistant"
+                       : "Changing TV clears the previous TV's input and favourites.";
         break;
     case Page::favourites:
         title = "Favourites";
-        subtitle = "Select to add or remove. L1 and R1 reorder your favourites.";
+        subtitle = "Select to add or remove. L1 and R1 reorder. The launcher shows the first ones "
+                   "that fit; the rest stay in All apps.";
         break;
     case Page::help:
         title = "Ready for the LG";
@@ -127,152 +453,119 @@ void Application::draw(hui::ui::Canvas &c) const
         break;
     case Page::quit:
         title = "Close Prism?";
-        subtitle = "Remote forwarding stops when the application closes.";
+        subtitle = "Remote forwarding stops when Prism closes. To leave the TV on the PS5, hold "
+                   "Circle in remote mode first.";
+        break;
+    default:
         break;
     }
-    label(c, title, 96, 129, 58, 1530, paper, true);
-    label(c, subtitle, 96, 188, 30, 1700, muted);
-    c.list.circle(1808, 108, 9, snapshot_.ready ? accent : Color::rgb(0xe6b86b));
-    if (page_ == Page::launcher || page_ == Page::apps)
+    words(c, title, kLeft, 88.0f, 46.0f, kRight - kLeft, look_->text, true);
+    words(c, subtitle, kLeft, 130.0f, 27.0f, kRight - kLeft, look_->muted);
+}
+void Application::draw_remote(Canvas &c) const
+{
+    const auto current = tv() ? target(*tv(), snapshot_.states) : "";
+    words(c,
+          current.empty()                ? "Waiting for the TV"
+          : current == config_.input_app ? "PS5 input is visible"
+                                         : app_name(current),
+          kLeft, 226.0f, 52.0f, kRight - kLeft, look_->sky, true);
+    paragraph(c,
+              "Prism stays open on the PS5 while you use an LG app. Hold Circle for 0.8 seconds to "
+              "come back.",
+              kLeft, 284.0f, 30.0f, 1500.0f, 44.0f, look_->muted, 2);
+    const auto style = glyph_style(*look_);
+    struct Control
     {
-        if (page_ == Page::apps && tiles_.empty())
-        {
-            label(c, "No apps to show yet", 108, 342, 42, 1500, paper, true);
-            hui::ui::paragraph(c.list, c.fonts.regular,
-                               ready() ? "Turn on the LG and check that Glasshouse exposes app_ids "
-                                         "on Launch App. You can return to Setup with Options."
-                                       : snapshot_.status,
-                               108, 400, 30, 1400, 44, muted, 3);
-        }
-        else
-            grid_.draw(c);
+        Button button;
+        const char *name;
+        const char *description;
+    };
+    const Control controls[] = {{Button::dpad, "Move", "Navigate the LG"},
+                                {Button::cross, "Select", "Open the focused item"},
+                                {Button::circle, "Back", "Hold to return to PS5"},
+                                {Button::square, "Play / pause", "Control media"},
+                                {Button::l1, "Rewind", "R1 fast-forwards"},
+                                {Button::triangle, "LG Home", "Open the TV home screen"}};
+    for (int i = 0; i < 6; i++)
+    {
+        const float x = kLeft + static_cast<float>(i % 3) * 576.0f;
+        const float y = 400.0f + static_cast<float>(i / 3) * 170.0f;
+        hui::ui::draw_button(c.list, c.fonts, style, controls[i].button, x, y + 20.0f, 58.0f);
+        words(c, controls[i].name, x + 108.0f, y + 12.0f, 31.0f, 410.0f, look_->text, true);
+        words(c, controls[i].description, x + 108.0f, y + 55.0f, 27.0f, 410.0f, look_->muted);
     }
-    else if (page_ == Page::remote)
+    if (tv() && !tv()->role("keyboard_text").empty())
+        words(c, "Touchpad opens text entry for the LG keyboard", kLeft, 780.0f, 28.0f, 1700.0f,
+              look_->muted);
+    const auto progress = remote_.hold_progress(now_);
+    if (progress > 0)
     {
-        const auto current = tv() ? target(*tv(), snapshot_.states) : "";
-        label(c,
-              current.empty()                ? "Waiting for the TV"
-              : current == config_.input_app ? "PS5 input is visible"
-                                             : app_name(current),
-              96, 326, 52, 1660, accent, true);
-        hui::ui::paragraph(c.list, c.fonts.regular,
-                           "Prism stays open on the PS5 while you use an LG app. Hold Circle for "
-                           "0.8 seconds to come back.",
-                           96, 390, 32, 1450, 46, muted, 2);
-        auto style = hui::ui::GlyphStyle::dark();
-        struct Control
-        {
-            Button button;
-            const char *name;
-            const char *description;
-        };
-        const Control controls[] = {{Button::dpad, "Move", "Navigate the LG"},
-                                    {Button::cross, "Select", "Open the focused item"},
-                                    {Button::circle, "Back", "Hold to return to PS5"},
-                                    {Button::square, "Play / pause", "Control media"},
-                                    {Button::l1, "Rewind", "R1 fast-forwards"},
-                                    {Button::triangle, "LG Home", "Open the TV home screen"}};
-        for (int i = 0; i < 6; i++)
-        {
-            float x = 96 + (i % 3) * 576.0f, y = 535 + (i / 3) * 158.0f;
-            hui::ui::draw_button(c.list, c.fonts, style, controls[i].button, x, y + 20, 58);
-            label(c, controls[i].name, x + 108, y + 12, 31, 410, paper, true);
-            label(c, controls[i].description, x + 108, y + 55, 27, 410, muted);
-        }
-        if (tv() && !tv()->role("keyboard_text").empty())
-            label(c, "Touchpad opens text entry for the LG keyboard", 96, 859, 28, 1700, muted);
-        auto progress = remote_.hold_progress(now_);
-        if (progress > 0)
-        {
-            c.list.rounded_rect({96, 890, 1728, 8}, 4, surface);
-            c.list.rounded_rect({96, 890, 1728 * progress, 8}, 4, accent);
-        }
+        c.list.rounded_rect({kLeft, 880.0f, kRight - kLeft, 8.0f}, 4.0f, look_->raised);
+        c.list.rounded_rect({kLeft, 880.0f, (kRight - kLeft) * progress, 8.0f}, 4.0f,
+                            look_->accent);
     }
-    else if (page_ == Page::help)
+}
+void Application::draw_help(Canvas &c) const
+{
+    const std::vector<std::pair<std::string, std::string>> checks = {
+        {"Home Assistant", snapshot_.ready ? "Connected" : snapshot_.status},
+        {"Glasshouse TV", tv() ? (tv()->usable() ? tv()->name : "Required entities are missing")
+                               : "Choose a TV in Setup"},
+        {"PS5 return input",
+         config_.input.empty() ? "Show the PS5 input and capture it in Setup" : config_.input},
+        {"Controller focus",
+         has_focus_ ? "Prism has the controller" : "Press a button with Prism in the foreground"},
+        {"Return shortcut", "Hold Circle for 0.8 s, or press Options in remote mode"},
+        {"System menus", "PS button opens the system UI. Forwarding pauses while it has focus."},
+        {"Background games",
+         "Open Prism before switching to an LG app. It cannot intercept other titles."}};
+    for (std::size_t i = 0; i < checks.size(); i++)
     {
-        const std::vector<std::pair<std::string, std::string>> checks = {
-            {"Home Assistant", snapshot_.ready ? "Connected" : snapshot_.status},
-            {"Glasshouse TV", tv() ? (tv()->usable() ? tv()->name : "Required entities are missing")
-                                   : "Choose a TV in Setup"},
-            {"PS5 return input",
-             config_.input.empty() ? "Show the PS5 input and capture it in Setup" : config_.input},
-            {"Controller focus", has_focus_ ? "Prism has the controller"
-                                            : "Press a button with Prism in the foreground"},
-            {"Return shortcut", "Hold Circle for 0.8 s, or press Options in remote mode"},
-            {"System menus",
-             "PS button opens the system UI. Forwarding pauses while it has focus."},
-            {"Background games",
-             "Open Prism before switching to an LG app. It cannot intercept other titles."}};
-        for (std::size_t i = 0; i < checks.size(); i++)
-        {
-            float y = 285 + static_cast<float>(i) * 83;
-            label(c, checks[i].first, 96, y, 29, 390, paper, true);
-            label(c, checks[i].second, 520, y, 28, 1300, muted);
-        }
+        const float y = 214.0f + static_cast<float>(i) * 96.0f;
+        words(c, checks[i].first, kLeft, y, 30.0f, 400.0f, look_->text, true);
+        words(c, checks[i].second, 520.0f, y, 29.0f, 1300.0f, look_->muted);
     }
-    else
+}
+void Application::draw(Canvas &c) const
+{
+    if (page_ == Page::launcher || page_ == Page::quick)
     {
-        list_.draw(c);
-        std::string heading = "On this PS5",
-                    body = "Settings stay on this console. Home Assistant carries your commands to "
-                           "Glasshouse on the LG.";
-        if (page_ == Page::setup)
-        {
-            heading = "Start here";
-            body = "Enter Home Assistant's local IPv4 address and token, then connect. Choose the "
-                   "TV and save the input while the PS5 is visible.\n\nUse a long-lived access "
-                   "token from your Home Assistant profile. Local HTTP only.";
-        }
+        draw_deck(c);
         if (page_ == Page::quick)
-        {
-            heading = "Small changes, live";
-            body = "Values come from your TV. Missing entities are shown as unavailable.\n\nSound "
-                   "output and screen-off are left out, as in Prism for Android TV.";
-        }
-        if (page_ == Page::favourites)
-        {
-            heading = "Your order";
-            body = "Favourites appear on the launcher in the order shown. Use L1 and R1 to move "
-                   "the selected favourite.\n\nRecent apps are remembered on this PS5.";
-        }
-        if (page_ == Page::tvs)
-        {
-            heading = snapshot_.tvs.empty() ? "No TV found" : "Choose one TV";
-            body =
-                snapshot_.tvs.empty()
-                    ? "Connect to Home Assistant, then enable Glasshouse's Launch App, Active App, "
-                      "Input Source and Remote button entities."
-                    : "Entity names can change in Home Assistant. Prism follows their Glasshouse "
-                      "roles.\n\nChanging TV clears the previous TV's input and favourites.";
-        }
-        if (page_ == Page::quit)
-        {
-            heading = "Before you go";
-            body = "Use hold-Circle in remote mode to bring the TV back to the PS5 before closing "
-                   "Prism.";
-        }
-        label(c, heading, 1256, 300, 34, 560, paper, true);
-        hui::ui::paragraph(c.list, c.fonts.regular, body, 1256, 354, 28, 540, 41, muted, 12);
-        if (page_ == Page::setup && !storage_status_.empty())
-            label(c, storage_status_, 1256, 858, 26, 550, muted);
+            draw_sheet(c);
+        else
+            draw_foot(c);
+        return;
     }
-    std::string status = notice_.empty() ? snapshot_.status : notice_;
-    label(c, status, 96, 952, 26, 1728, notice_.empty() ? muted : accent);
-    std::vector<hui::ui::Hint> hints;
-    if (page_ == Page::remote)
-        hints = {{Button::circle, "Hold to return"}, {Button::options, "Return to PS5"}};
-    else if (page_ == Page::launcher || page_ == Page::apps)
-        hints = {{Button::cross, "Open"},
-                 {Button::square, "Favourite"},
-                 {Button::options, "Setup"},
-                 {Button::circle, page_ == Page::launcher ? "Close" : "Back"}};
-    else if (page_ == Page::quick)
-        hints = {
-            {Button::dpad, "Change value"}, {Button::circle, "Back"}, {Button::options, "Setup"}};
+    draw_header(c);
+    if (page_ == Page::apps && tiles_.empty())
+    {
+        words(c, "No apps to show yet", kLeft, 240.0f, 42.0f, 1500.0f, look_->text, true);
+        paragraph(c,
+                  ready()
+                      ? "Turn on the LG and check that Glasshouse exposes app_ids on Launch App. "
+                        "You can return to Setup with Options."
+                      : snapshot_.status,
+                  kLeft, 298.0f, 30.0f, 1400.0f, 44.0f, look_->muted, 3);
+    }
+    else if (page_ == Page::apps || page_ == Page::setup)
+        grid_.draw(c);
+    else if (page_ == Page::remote)
+        draw_remote(c);
+    else if (page_ == Page::help)
+        draw_help(c);
+    else if (page_ == Page::tvs && snapshot_.tvs.empty())
+    {
+        words(c, "No TV found", kLeft, 240.0f, 42.0f, 1500.0f, look_->text, true);
+        paragraph(
+            c,
+            "Connect to Home Assistant, then enable Glasshouse's Launch App, Active App, Input "
+            "Source and Remote button entities.",
+            kLeft, 298.0f, 30.0f, 1400.0f, 44.0f, look_->muted, 3);
+    }
     else
-        hints = {
-            {Button::cross, "Select"}, {Button::circle, "Back"}, {Button::options, "Launcher"}};
-    hui::ui::draw_hints(c.list, c.fonts, hui::ui::GlyphStyle::dark(), hints.data(),
-                        static_cast<int>(hints.size()), 96, false);
+        list_.draw(c);
+    draw_foot(c);
 }
 } // namespace prism

@@ -6,10 +6,10 @@
 
     docs/images/hero.png         3200 × 1640: LG Settings over Prism on a TV, with Prism's
                                  launcher and Quick TV settings beside it, the lockup and tagline
-    docs/images/screenshots/     all LG apps, the remote screen and Quick TV settings
+    docs/images/screenshots/     the launcher, all LG apps, the remote screen and Quick TV settings
 
 docs/images/tv/ holds screenshots the TV took of itself (webOS's capture service, DISPLAY
-method) while the PS5 showed Prism: the launcher, and LG Settings opened from Prism over its
+method) while the PS5 showed Prism: LG Settings opened from Prism over its
 remote screen. The other pictures are 1920 × 1080 renders from Prism's own UI code and
 shaders (build/promo/), drawn from a snapshot of a real Home Assistant
 (tools/capture-promo.py). The layout follows the Android TV app's hero (prism/tools/hero.py).
@@ -48,10 +48,10 @@ TAGLINE = [  # (text, font, colour, line height)
 ]
 
 # Regions of the 1920 × 1080 renders (left, top, right, bottom).
-QUICK_CROP = (64, 232, 1208, 424)     # the first two settings
-LAUNCHER_CROP = (64, 250, 1856, 484)  # the first row: Continue on the LG and recent apps
+QUICK_CROP = (1064, 170, 1880, 372)    # the sheet's first two settings
+LAUNCHER_CROP = (64, 785, 1856, 1015)  # the dock and the beam
 TV = ROOT / "docs" / "images" / "tv"
-SHOTS = ("apps", "remote", "quick-settings")
+SHOTS = ("launcher", "apps", "remote", "quick-settings")
 
 
 def font(weight, size):
@@ -198,8 +198,7 @@ def main():
     renders = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "promo"
     shots = {name: Image.open(renders / f"{name}.png").convert("RGB") for name in SHOTS}
     settings = Image.open(TV / "lg-settings.jpg").convert("RGB")
-    launcher = Image.open(TV / "launcher.jpg").convert("RGB")
-    save_png(hero(settings, launcher.crop(LAUNCHER_CROP), shots["quick-settings"].crop(QUICK_CROP)), OUT / "hero.png")
+    save_png(hero(settings, shots["launcher"].crop(LAUNCHER_CROP), shots["quick-settings"].crop(QUICK_CROP)), OUT / "hero.png")
     for name, image in shots.items():
         save_png(image, OUT / "screenshots" / f"{name}.png")
 

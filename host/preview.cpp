@@ -40,7 +40,7 @@ int main()
     gfx::Renderer renderer;
     if (!renderer.init())
         return 3;
-    gfx::Font regular, bold, display_font;
+    gfx::Font regular, bold, display_font, numerals;
     ui::Fonts fonts;
     auto load = [&](const char *name, gfx::Font &font, ui::FontRef &ref)
     {
@@ -52,8 +52,8 @@ int main()
     };
     load("atkinson-regular", regular, fonts.regular);
     load("atkinson-semibold", bold, fonts.semibold);
+    load("lexend-regular", numerals, fonts.mono);
     load("lexend-semibold", display_font, fonts.display);
-    fonts.mono = fonts.regular;
     fonts.pixel = fonts.regular;
     fonts.hand = fonts.regular;
     const char *data = std::getenv("PRISM_PREVIEW_DATA");
@@ -71,6 +71,7 @@ int main()
     prism::Application app(prism::Config::parse(fixture["config"]));
     app.receive(snapshot);
     app.send = [](prism::Command) { return 1; };
+    std::vector<std::pair<std::string, std::uint32_t>> icons;
     // A live snapshot names its icons' files, beside it, by the URL the TV gives each app.
     if (live && fixture.contains("icons"))
         for (const auto &[url, name] : fixture["icons"].items())
@@ -96,12 +97,55 @@ int main()
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
             stbi_image_free(pixels);
             app.icon(url, texture);
+            icons.emplace_back(url, texture);
         }
     const std::string remote_app = fixture.value("remote_app", std::string("org.afterglow"));
     const std::string out = live ? "build/promo/" : "build/preview/";
     gfx::Canvas target;
     target.create(1920, 1080, 1);
     std::filesystem::create_directories(out);
+    const auto settle = [](prism::Application &screen)
+    {
+        ui::Feedback feedback;
+        InputFrame neutral;
+        neutral.connected = true;
+        for (int i = 0; i < 90; i++)
+            screen.update(neutral, 1.f / 60, 1000000 + i * 16667, feedback);
+    };
+    const auto render = [&](prism::Application &screen, const std::string &name)
+    {
+        gfx::DrawList list;
+        ui::Canvas canvas{list, fonts, 0, 1};
+        screen.draw(canvas);
+        renderer.begin();
+        renderer.backdrop(screen.ground(canvas.time));
+        renderer.draw(list);
+        renderer.backdrop(screen.overlay());
+        renderer.present(target.framebuffer(), 1920, 1080);
+        glBindFramebuffer(GL_FRAMEBUFFER, target.framebuffer());
+        std::vector<unsigned char> pixels(1920 * 1080 * 4);
+        glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        stbi_flip_vertically_on_write(1);
+        return stbi_write_png((out + name + ".png").c_str(), 1920, 1080, 4, pixels.data(),
+                              1920 * 4) != 0;
+    };
+    // Every look, on the launcher and its sheet, before the screens below change the snapshot.
+    for (const auto &look : prism::looks())
+    {
+        auto config = prism::Config::parse(fixture["config"]);
+        config.theme = look.id;
+        prism::Application worn(config);
+        for (const auto &[url, texture] : icons)
+            worn.icon(url, texture);
+        worn.receive(snapshot);
+        settle(worn);
+        if (!render(worn, std::string("look-") + look.id))
+            return 5;
+        worn.open(prism::Page::quick);
+        settle(worn);
+        if (!render(worn, std::string("look-") + look.id + "-quick"))
+            return 5;
+    }
     for (const auto &[name, page] :
          std::vector<std::pair<const char *, prism::Page>>{{"launcher", prism::Page::launcher},
                                                            {"apps", prism::Page::apps},
@@ -132,22 +176,8 @@ int main()
             app.receive(snapshot);
         }
         app.open(page);
-        ui::Feedback feedback;
-        InputFrame neutral;
-        neutral.connected = true;
-        for (int i = 0; i < 60; i++)
-            app.update(neutral, 1.f / 60, 1000000 + i * 16667, feedback);
-        gfx::DrawList list;
-        ui::Canvas canvas{list, fonts, 0, 1};
-        app.draw(canvas);
-        renderer.begin();
-        renderer.draw(list);
-        renderer.present(target.framebuffer(), 1920, 1080);
-        glBindFramebuffer(GL_FRAMEBUFFER, target.framebuffer());
-        std::vector<unsigned char> pixels(1920 * 1080 * 4);
-        glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-        stbi_flip_vertically_on_write(1);
-        if (!stbi_write_png((out + name + ".png").c_str(), 1920, 1080, 4, pixels.data(), 1920 * 4))
+        settle(app);
+        if (!render(app, name))
             return 5;
     }
     target.destroy();

@@ -431,6 +431,126 @@ int main(int argc, char **argv)
     tick(focus_app, neutral);
     tick(focus_app, input(hui::Action::confirm));
     CHECK(focus_sends == 1);
+    // The launcher fits one screen: the deck's tiles and the foot's line stay inside 1080p.
+    CHECK(big_tile_rect().y >= 40 && big_tile_rect().y + big_tile_rect().h < dock_rect(0, 5).y);
+    CHECK(grid_rect(kGridApps).y + grid_rect(kGridApps).h <= dock_rect(0, 5).y);
+    CHECK(dock_rect(4, 5).x + dock_rect(4, 5).w <= 1824.5f);
+    CHECK(dock_rect(0, 5).y + dock_rect(0, 5).h < kFootCentre - 20);
+    CHECK(kFootCentre + 40 < 1080);
+    CHECK(grid_rect(3).x + grid_rect(3).w <= 1824.5f);
+    // The focus finds its way round the deck's three parts by distance.
+    Deck deck;
+    std::vector<hui::gfx::Rect> slots = {big_tile_rect()};
+    for (int i = 0; i <= kGridApps; ++i)
+        slots.push_back(grid_rect(i));
+    for (int i = 0; i < 5; ++i)
+        slots.push_back(dock_rect(i, 5));
+    deck.set_slots(slots);
+    CHECK(deck.step(hui::Direction::left) == -1);
+    CHECK(deck.step(hui::Direction::up) == -1);
+    CHECK(deck.step(hui::Direction::right) == 1); // the big tile to the grid's first tile
+    CHECK(deck.step(hui::Direction::down) == 9);  // ... and to the dock's first
+    deck.set_focus(5);                            // the grid's second row, first column
+    CHECK(deck.step(hui::Direction::up) == 1);
+    CHECK(deck.step(hui::Direction::left) == 0);
+    CHECK(deck.step(hui::Direction::down) == 11); // the dock's tile underneath
+    deck.set_focus(8);                            // All apps
+    CHECK(deck.step(hui::Direction::right) == -1);
+    CHECK(deck.step(hui::Direction::down) == 13);
+    deck.set_focus(9); // LG Home
+    CHECK(deck.step(hui::Direction::up) == 0);
+    CHECK(deck.step(hui::Direction::right) == 10);
+    deck.set_focus(13);
+    CHECK(deck.step(hui::Direction::up) == 8);
+    // Opening and closing the sheet leaves the launcher where it was.
+    auto launcher_config = Config::parse(f["config"]);
+    Application launcher_app(launcher_config);
+    launcher_app.receive(snapshot(f));
+    launcher_app.open(Page::launcher);
+    auto go = neutral;
+    go.nav = hui::Direction::down;
+    tick(launcher_app, go, 1000000); // to LG Home in the dock
+    go.nav = hui::Direction::right;
+    for (int i = 0; i < 2; ++i)
+        tick(launcher_app, go, 1100000 + i * 100000); // along to Quick TV settings
+    tick(launcher_app, input(hui::Action::confirm), 1400000);
+    CHECK(launcher_app.page() == Page::quick);
+    tick(launcher_app, neutral, 1500000);
+    tick(launcher_app, input(hui::Action::back), 1600000);
+    CHECK(launcher_app.page() == Page::launcher);
+    tick(launcher_app, neutral, 1700000);
+    tick(launcher_app, input(hui::Action::confirm), 1800000);
+    CHECK(launcher_app.page() == Page::quick); // the focus stayed on the tile that opened it
+    // Looks: saved ids, the Setup row's order, sunset, and every word readable.
+    CHECK(std::string(look_by_id("nonsense").id) == "refract");
+    CHECK(std::string(look_by_id("dusk").name) == "Dusk");
+    const Look *walked = &look_by_id("refract");
+    for (std::size_t i = 0; i < looks().size(); ++i)
+        walked = &next_look(*walked);
+    CHECK(std::string(walked->id) == "refract");
+    CHECK(std::string(worn_look("daylight", false, true).id) == "daylight");
+    CHECK(std::string(worn_look("daylight", true, false).id) == "daylight");
+    CHECK(std::string(worn_look("daylight", true, true).id) == "dusk");
+    Config themed = Config::parse(f["config"]);
+    CHECK(themed.theme == "refract" && !themed.dusk_after_sunset);
+    themed.theme = "aurora";
+    themed.dusk_after_sunset = true;
+    CHECK(Config::parse(themed.json()).theme == "aurora" &&
+          Config::parse(themed.json()).dusk_after_sunset);
+    Application sunny(themed);
+    auto sky = snapshot(f);
+    sky.states.apply({{"a", {{kSunEntity, {{"s", "above_horizon"}}}}}});
+    sunny.receive(sky);
+    CHECK(std::string(sunny.look().id) == "aurora");
+    sky.states.apply({{"c", {{kSunEntity, {{"+", {{"s", "below_horizon"}}}}}}}});
+    sunny.receive(sky);
+    CHECK(std::string(sunny.look().id) == "dusk");
+    sky.ready = false;
+    sky.states.clear();
+    sunny.receive(sky);
+    CHECK(std::string(sunny.look().id) == "dusk"); // a dropped connection is not a sunrise
+    sky = snapshot(f);
+    sunny.receive(sky);
+    CHECK(std::string(sunny.look().id) == "aurora"); // a server with no sun has no sunset
+    // The foot of the screen says where the controller really goes.
+    Application foot_app(launcher_config);
+    foot_app.receive(snapshot(f));
+    CHECK(foot_app.live_line() == "On the PS5");
+    auto over_input = snapshot(f);
+    over_input.states.apply({{"c", {{active, {{"+", {{"a", {{"keyboard_visible", true}}}}}}}}}});
+    foot_app.receive(over_input);
+    foot_app.open(Page::launcher);
+    CHECK(foot_app.live_line() == "On the PS5"); // on Prism's own screen, the controller stays here
+    foot_app.open(Page::remote);
+    CHECK(foot_app.live_line().starts_with("On the LG")); // the LG keyboard, over the PS5's input
+    Application lg_first(launcher_config);
+    lg_first.receive(running);
+    CHECK(lg_first.page() == Page::launcher && lg_first.live_line() == "On the PS5");
+    lg_first.open(Page::remote);
+    CHECK(lg_first.live_line() == "On the LG · Afterglow");
+    for (const auto &look : looks())
+    {
+        const Color bottom = look.ground.colors[1];
+        CHECK(contrast(look.text, over(look.panel, bottom)) >= 4.5);
+        CHECK(contrast(look.muted, over(look.panel, bottom)) >= 4.5);
+        CHECK(contrast(look.text, look.sheet) >= 4.5 && contrast(look.muted, look.sheet) >= 4.5);
+        CHECK(contrast(look.muted, bottom) >= 4.5);
+        CHECK(contrast(look.accent, bottom) >= 3 && contrast(look.on_accent, look.accent) >= 3);
+        CHECK(contrast(look.sky, bottom) >= 3 && contrast(look.amber, bottom) >= 3);
+    }
+    const Look &refract = look_by_id("refract");
+    for (const auto hex : {0xffffffu, 0x000000u, 0x808080u, 0xd6e04au, 0xa5e27cu, 0xffd400u,
+                           0x00ffffu, 0xd0085au, 0xff0000u, 0x0000ffu, 0x00ff00u, 0xff9d5cu})
+    {
+        const Color lit = over(wash(Color::rgb(hex)), refract.ground.colors[0]);
+        CHECK(contrast(refract.muted, over(refract.panel, lit)) >= 4.5);
+        CHECK(contrast(refract.text, lit) >= 4.5);
+    }
+    // Digits come apart from words, so they can be drawn in Lexend.
+    const auto runs = digit_runs("90 min · HDMI 3");
+    CHECK(runs.size() == 3 && runs[0].digits && runs[0].text == "90" && !runs[1].digits);
+    CHECK(runs[1].text == " min · HDMI " && runs[2].digits && runs[2].text == "3");
+    CHECK(digit_runs("").empty() && digit_runs("Off").size() == 1);
     // Decode the shipped icon; malformed bytes never become a texture.
     std::string icon_bytes;
     CHECK(hui::save::read_file("sce_sys/icon0.png", &icon_bytes));

@@ -4,6 +4,8 @@
 #include "prism/application.hpp"
 #include "prism/decimal.hpp"
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <set>
 
 namespace prism
@@ -13,46 +15,81 @@ using hui::Direction;
 using hui::ui::ListItem;
 Application::Application(Config c) : config_(std::move(c))
 {
-    auto theme = hui::ui::default_theme();
-    using hui::gfx::Color;
-    theme.page = Color::rgb(0x0d0f10);
-    theme.surface = Color::rgb(0x181b20);
-    theme.surface_high = Color::rgb(0x22272e);
-    theme.text = Color::rgb(0xf5f4ef);
-    theme.text_muted = Color::rgb(0xb9bec5);
-    theme.page_text = theme.text;
-    theme.page_text_muted = theme.text_muted;
-    theme.focus = Color::rgb(0x7bdafa);
-    theme.primary = theme.focus;
-    theme.accent = theme.focus;
-    theme.on_primary = theme.page;
-    theme.style = hui::ui::SurfaceStyle::flat;
-    theme.radius = 16;
-    theme.radius_card = 20;
-    theme.border = 0;
-    theme.focus_width = 4;
-    theme.focus_gap = 5;
-    grid_.style.theme = theme;
-    grid_.style.columns = 4;
-    grid_.style.cell_height = 236;
-    grid_.style.gap_x = 28;
-    grid_.style.gap_y = 28;
-    grid_.style.card.focus_scale = 1.025f;
+    look_ = &worn_look(config_.theme, config_.dusk_after_sunset, sun_down_);
+    wear_look();
     grid_.style.card.lift = 2;
     grid_.style.padding = 12;
-    grid_.set_bounds({84, 252, 1752, 650});
-    list_.style.theme = theme;
-    list_.style.row_height = 82;
+    list_.style.highlight.kind = hui::ui::HighlightKind::ring;
+    list_.style.cards = false;
     list_.style.title_size = 30;
     list_.style.subtitle_size = 24;
     list_.style.value_size = 28;
-    list_.style.highlight.kind = hui::ui::HighlightKind::ring;
-    list_.style.cards = false;
-    list_.set_bounds({96, 250, 1080, 650});
     setup_view();
     if (!config_.configured())
         page_ = Page::setup;
+    arrange_page();
     rebuild();
+}
+// The UI kit's components draw from a hui::ui::Theme; this keeps it in step with the look.
+void Application::wear_look()
+{
+    auto theme = hui::ui::default_theme();
+    const Look &look = *look_;
+    theme.page = look.ground.colors[0];
+    theme.surface = look.panel;
+    theme.surface_high = look.raised;
+    theme.text = look.text;
+    theme.text_muted = look.muted;
+    theme.page_text = look.text;
+    theme.page_text_muted = look.muted;
+    theme.focus = look.accent;
+    theme.primary = look.accent;
+    theme.accent = look.accent;
+    theme.on_primary = look.on_accent;
+    theme.style = hui::ui::SurfaceStyle::flat;
+    theme.radius = look.square ? 0.0f : 16.0f;
+    theme.radius_card = look.square ? 0.0f : kTileRadius;
+    theme.border = 0;
+    theme.focus_width = 4;
+    theme.focus_gap = 5;
+    theme.dark = look.dark;
+    grid_.style.theme = theme;
+    list_.style.theme = theme;
+    deck_.style.theme = theme;
+}
+// Where the grid and the list sit on the current page: under one compact header, over the foot.
+void Application::arrange_page()
+{
+    if (page_ == Page::setup)
+    {
+        grid_.style.columns = 2;
+        grid_.style.cell_height = 88;
+        grid_.style.gap_x = 24;
+        grid_.style.gap_y = 8;
+        grid_.style.card.focus_scale = 1.0f;
+        grid_.set_bounds({84, 150, 1752, 792});
+    }
+    else
+    {
+        // Four whole rows, so no row is ever cut at the bottom; the scroll thumb says there is
+        // more.
+        grid_.style.columns = 6;
+        grid_.style.cell_height = 182;
+        grid_.style.gap_x = 20;
+        grid_.style.gap_y = 20;
+        grid_.style.card.focus_scale = 1.025f;
+        grid_.set_bounds({84, 138, 1752, 812});
+    }
+    if (page_ == Page::quick)
+    {
+        list_.style.row_height = 88;
+        list_.set_bounds({1072, 186, 800, 680});
+    }
+    else
+    {
+        list_.style.row_height = 76;
+        list_.set_bounds({96, 160, 1728, 780});
+    }
 }
 const Tv *Application::tv() const
 {
@@ -106,6 +143,16 @@ void Application::receive(Snapshot s)
         }
     }
     snapshot_ = std::move(s);
+    // A dropped connection clears the states, so the last answer stands until there is a new one.
+    // A server with no sun, or one hidden from this user, has no sunset.
+    if (snapshot_.ready)
+        sun_down_ = snapshot_.states.get(kSunEntity).state == "below_horizon";
+    const Look &worn = worn_look(config_.theme, config_.dusk_after_sunset, sun_down_);
+    if (&worn != look_)
+    {
+        look_ = &worn;
+        wear_look();
+    }
     if (tv())
         apps_ = catalog(*tv(), snapshot_.states);
     else
@@ -205,6 +252,9 @@ void Application::follow_lg_surface(const std::string &current, bool generation_
 void Application::open(Page p)
 {
     flush_setting();
+    // Back from the sheet lands on the tile that opened it.
+    const bool sheet_closing = page_ == Page::quick && p == Page::launcher;
+    const bool sheet_opening = page_ == Page::launcher && p == Page::quick;
     page_ = p;
     notice_.clear();
     remote_.reset();
@@ -212,6 +262,13 @@ void Application::open(Page p)
     cued_ = false;
     list_.set_focus(0);
     grid_.set_focus(0);
+    if (!sheet_closing && !sheet_opening)
+    {
+        // Another page's tiles must not decide where this page's focus lands.
+        tiles_.clear();
+        deck_.set_focus(0);
+    }
+    arrange_page();
     rebuild();
     list_.enter();
     grid_.enter();
@@ -224,98 +281,80 @@ void Application::rebuild()
 {
     grid_.style.reduced_motion = config_.reduced_motion;
     list_.style.reduced_motion = config_.reduced_motion;
-    std::string focused = grid_.focus() < static_cast<int>(tiles_.size())
-                              ? tiles_[static_cast<std::size_t>(grid_.focus())].id
-                              : "";
+    deck_.style.reduced_motion = config_.reduced_motion;
+    const int focus_at = tile_focus();
+    const std::string focused = focus_at >= 0 && focus_at < static_cast<int>(tiles_.size())
+                                    ? tiles_[static_cast<std::size_t>(focus_at)].id
+                                    : "";
     tiles_.clear();
-    auto add_app = [&](const std::string &id, const std::string &label)
-    {
-        if (const auto *a = find_app(id))
-        {
-            tiles_.push_back({a->id, a->title, label, a->icon, a->color});
-            if (request_icon)
-                request_icon(a->icon);
-        }
-    };
-    if (page_ == Page::launcher)
-    {
-        std::string resume;
-        for (const auto &id : config_.recent)
-            if (find_app(id) && launchable(id))
-            {
-                resume = id;
-                break;
-            }
-        if (!resume.empty())
-            add_app(resume, "Continue on the LG");
-        for (const auto &id : config_.favourites)
-            if (launchable(id))
-                add_app(id, "Favourite");
-        int recent = 0;
-        for (const auto &id : config_.recent)
-            if (id != resume && find_app(id) && launchable(id) &&
-                std::find(config_.favourites.begin(), config_.favourites.end(), id) ==
-                    config_.favourites.end() &&
-                recent++ < 3)
-                add_app(id, "Recently used");
-        for (const auto &[id, title, sub] :
-             std::vector<std::tuple<std::string, std::string, std::string>>{
-                 {"@apps", "All apps", "Choose an LG app"},
-                 {"@home", "LG Home", "Open the TV home screen"},
-                 {"@settings", "LG Settings", "Open the TV settings"},
-                 {"@quick", "Quick TV settings", "Picture, sound and input"},
-                 {"@remote", "Use as a remote", "Control what's on the LG"},
-                 {"@setup", "Setup", "Connection, TV and favourites"}})
-            tiles_.push_back({id, title, sub, "", ""});
-    }
+    if (page_ == Page::launcher || page_ == Page::quick)
+        build_deck();
     else if (page_ == Page::apps)
     {
         for (const auto &a : apps_)
             if (launchable(a.id))
-                add_app(a.id, std::find(config_.favourites.begin(), config_.favourites.end(),
-                                        a.id) != config_.favourites.end()
-                                  ? "Favourite"
-                                  : "LG app");
+            {
+                const bool favourite =
+                    std::find(config_.favourites.begin(), config_.favourites.end(), a.id) !=
+                    config_.favourites.end();
+                tiles_.push_back({a.id, a.title, favourite ? "Favourite" : "", a.icon, a.color});
+                if (request_icon)
+                    request_icon(a.icon);
+            }
     }
-    grid_.set_count(static_cast<int>(tiles_.size()));
+    if (page_ != Page::launcher && page_ != Page::quick)
+        grid_.set_count(page_ == Page::setup ? 15 : static_cast<int>(tiles_.size()));
     if (!focused.empty())
         for (std::size_t i = 0; i < tiles_.size(); i++)
             if (tiles_[i].id == focused)
             {
-                grid_.set_focus(static_cast<int>(i));
+                if (page_ == Page::apps)
+                    grid_.set_focus(static_cast<int>(i));
+                else
+                    deck_.set_focus(static_cast<int>(i));
                 break;
             }
     std::vector<ListItem> rows;
-    auto row =
-        [&](std::string title, std::string sub = "", std::string value = "", bool disabled = false)
+    auto row = [&](std::string title, std::string sub = "", std::string value = "",
+                   bool disabled = false, int tag = 0)
     {
         ListItem r;
         r.title = std::move(title);
         r.subtitle = std::move(sub);
         r.value = std::move(value);
         r.disabled = disabled;
+        r.tag = tag;
         rows.push_back(std::move(r));
     };
+    auto setup = [&](SetupRow id, std::string title, std::string sub, std::string value = "",
+                     bool disabled = false)
+    { row(std::move(title), std::move(sub), std::move(value), disabled, static_cast<int>(id)); };
     if (page_ == Page::setup)
     {
-        row("Home Assistant address", "Numeric IPv4 on your local network",
-            config_.host.empty() ? "Not set" : config_.host);
-        row("Port", "Home Assistant's local HTTP port", std::to_string(config_.port));
-        row("Access token", "Long-lived token; hidden while you type",
-            config_.token.empty() ? "Not set" : "Set");
-        row("Connect / retry", "Apply the address and token");
-        row("TV", "Select your Glasshouse TV", tv() ? tv()->name : "Choose a TV");
-        row("Use this input for the PS5", "Keep the PS5 visible, then select this row",
-            config_.input.empty() ? "Not set" : config_.input, !ready());
-        row("Favourites", "Choose apps; L1 / R1 changes their order");
-        row("Reduce motion", "Keep focus changes still", config_.reduced_motion ? "On" : "Off");
-        row("Controller vibration", "A short rumble on each move",
-            config_.vibration ? "On" : "Off");
-        row("Input diagnostics", "Write controller counts to local status.json",
-            config_.diagnostics ? "On" : "Off");
-        row("Controls and setup check", "Connection, return shortcut and controller focus");
-        row("Disconnect and forget token", "Keep the TV and favourites on this PS5");
-        row("Close Prism", "Return to the PS5 home screen");
+        setup(SetupRow::address, "Home Assistant address", "Numeric IPv4 on your local network",
+              config_.host.empty() ? "Not set" : config_.host);
+        setup(SetupRow::port, "Port", "Home Assistant's local HTTP port",
+              std::to_string(config_.port));
+        setup(SetupRow::token, "Access token", "Long-lived token; hidden while you type",
+              config_.token.empty() ? "Not set" : "Set");
+        setup(SetupRow::connect, "Connect / retry", "Apply the address and token");
+        setup(SetupRow::tv, "TV", "Select your Glasshouse TV", tv() ? tv()->name : "Choose a TV");
+        setup(SetupRow::input, "Use this input for the PS5", "Keep the PS5 visible, then select",
+              config_.input.empty() ? "Not set" : config_.input, !ready());
+        setup(SetupRow::favourites, "Favourites", "Choose apps; L1 / R1 changes their order");
+        setup(SetupRow::theme, "Theme", "How Prism looks", look_by_id(config_.theme).name);
+        setup(SetupRow::dusk, "Dusk after sunset", "Follows Home Assistant's sun",
+              config_.dusk_after_sunset ? "On" : "Off");
+        setup(SetupRow::reduced_motion, "Reduce motion", "Keep focus changes still",
+              config_.reduced_motion ? "On" : "Off");
+        setup(SetupRow::vibration, "Controller vibration", "A short rumble on each move",
+              config_.vibration ? "On" : "Off");
+        setup(SetupRow::diagnostics, "Input diagnostics", "Controller counts in local status.json",
+              config_.diagnostics ? "On" : "Off");
+        setup(SetupRow::help, "Controls and setup check", "Connection, return shortcut, focus");
+        setup(SetupRow::disconnect, "Disconnect and forget token", "Keeps the TV and favourites");
+        setup(SetupRow::close, "Close Prism", "Return to the PS5 home screen");
+        setup_rows_ = rows;
     }
     else if (page_ == Page::tvs)
     {
@@ -328,11 +367,11 @@ void Application::rebuild()
     else if (page_ == Page::favourites)
     {
         for (const auto &id : config_.favourites)
-            row(app_name(id), "Favourite · L1 / R1 to reorder", "On");
+            row(app_name(id), "L1 / R1 to reorder", "On");
         for (const auto &a : apps_)
             if (launchable(a.id) && std::find(config_.favourites.begin(), config_.favourites.end(),
                                               a.id) == config_.favourites.end())
-                row(a.title, "Select to add to favourites", "Off");
+                row(a.title, "", "Off");
     }
     else if (page_ == Page::quick)
     {
@@ -350,9 +389,174 @@ void Application::rebuild()
         row("Keep using Prism");
         row("Close Prism", "The DualSense will stop controlling the LG");
     }
-    int focus = list_.focus();
-    list_.set_items(std::move(rows));
-    list_.set_focus(focus);
+    if (page_ != Page::setup)
+    {
+        int focus = list_.focus();
+        list_.set_items(std::move(rows));
+        list_.set_focus(focus);
+    }
+}
+int Application::tile_focus() const
+{
+    return page_ == Page::apps ? grid_.focus() : deck_.focus();
+}
+// The launcher: the big tile, then the grid's apps, All apps in the grid's last place, then the
+// dock.
+void Application::build_deck()
+{
+    const auto usable = [&](const std::string &id) { return find_app(id) && launchable(id); };
+    const auto is_favourite = [&](const std::string &id)
+    {
+        return std::find(config_.favourites.begin(), config_.favourites.end(), id) !=
+               config_.favourites.end();
+    };
+    std::string resume;
+    for (const auto &id : config_.recent)
+        if (usable(id))
+        {
+            resume = id;
+            break;
+        }
+    std::vector<std::string> order;
+    for (const auto &id : config_.favourites)
+        if (usable(id))
+            order.push_back(id);
+    for (const auto &id : config_.recent)
+        if (usable(id) && !is_favourite(id))
+            order.push_back(id);
+    const std::string hero = !resume.empty() ? resume : order.empty() ? "" : order.front();
+    std::vector<hui::gfx::Rect> slots;
+    const auto app_tile = [&](const std::string &id, const std::string &label, hui::gfx::Rect rect)
+    {
+        const auto *a = find_app(id);
+        tiles_.push_back({a->id, a->title, label, a->icon, a->color});
+        slots.push_back(rect);
+        if (request_icon)
+            request_icon(a->icon);
+    };
+    if (!hero.empty())
+        app_tile(hero,
+                 !resume.empty()      ? "Continue on the LG"
+                 : is_favourite(hero) ? "Favourite"
+                                      : "Recently used",
+                 big_tile_rect());
+    else if (!apps_.empty())
+    {
+        tiles_.push_back({"@choose", "Choose favourites", "Your apps, one press away", "", ""});
+        slots.push_back(big_tile_rect());
+    }
+    else
+    {
+        tiles_.push_back(
+            {"@connect", "Nothing to open yet", "Check the TV and connection", "", ""});
+        slots.push_back(big_tile_rect());
+    }
+    int cell = 0;
+    if (config_.favourites.empty() && !hero.empty() && !apps_.empty())
+    {
+        tiles_.push_back({"@choose", "Choose favourites", "", "", ""});
+        slots.push_back(grid_rect(cell++));
+    }
+    for (const auto &id : order)
+    {
+        if (cell >= kGridApps)
+            break;
+        if (id != hero)
+            app_tile(id, "", grid_rect(cell++));
+    }
+    tiles_.push_back({"@apps", "All apps", "", "", ""});
+    slots.push_back(grid_rect(kGridApps));
+    const std::vector<std::pair<const char *, const char *>> dock = {
+        {"@home", "LG Home"},
+        {"@settings", "LG Settings"},
+        {"@quick", "Quick TV settings"},
+        {"@remote", "Use as a remote"},
+        {"@setup", "Setup"}};
+    for (std::size_t i = 0; i < dock.size(); i++)
+    {
+        tiles_.push_back({dock[i].first, dock[i].second, "", "", ""});
+        slots.push_back(dock_rect(static_cast<int>(i), static_cast<int>(dock.size())));
+    }
+    deck_.set_slots(std::move(slots));
+}
+// Prism's own screens have the controller, whatever the TV shows: it only goes on to the LG from
+// the remote screen. Its LG keyboard counts, over the PS5's input as well.
+Application::BeamEnd Application::beam_end() const
+{
+    if (!ready() || config_.input_app.empty())
+        return BeamEnd::none;
+    if (page_ != Page::remote)
+        return BeamEnd::ps5;
+    if (controls_lg(*tv(), snapshot_.states, config_.input_app))
+        return BeamEnd::lg;
+    return target(*tv(), snapshot_.states) == config_.input_app ? BeamEnd::ps5 : BeamEnd::none;
+}
+// Where the controller goes, in words; a message from just now comes first.
+std::string Application::live_line() const
+{
+    if (!notice_.empty())
+        return notice_;
+    if (page_ == Page::setup && !storage_status_.empty())
+        return storage_status_;
+    switch (beam_end())
+    {
+    case BeamEnd::ps5:
+        return "On the PS5";
+    case BeamEnd::lg:
+        return "On the LG · " + app_name(target(*tv(), snapshot_.states));
+    case BeamEnd::none:
+        break;
+    }
+    return snapshot_.status;
+}
+hui::gfx::BackdropSpec Application::ground(float time) const
+{
+    auto spec = look_->ground;
+    spec.time = config_.reduced_motion ? 0.0f : time;
+    if (look_->washes)
+    {
+        spec.colors[2] = {light_.r, light_.g, light_.b, 1.0f};
+        spec.params[0] = light_x_;
+        spec.params[1] = light_y_;
+        spec.params[2] = light_.a;
+    }
+    return spec;
+}
+hui::gfx::BackdropSpec Application::overlay() const
+{
+    hui::gfx::BackdropSpec spec;
+    if (look_->scanlines)
+    {
+        spec.mode = hui::gfx::BackdropMode::scanlines;
+        spec.params[0] = 0.12f;
+        spec.params[1] = 0.35f;
+    }
+    return spec;
+}
+// The ground's light follows the focused tile, in that tile's colour, and the beam's dot its end.
+void Application::ease_light(float dt)
+{
+    const float ease = config_.reduced_motion ? 1.0f : 1.0f - std::exp(-6.0f * dt);
+    beam_along_ += ((beam_end() == BeamEnd::lg ? 1.0f : 0.0f) - beam_along_) * ease;
+    const int focus = tile_focus();
+    const bool on_tiles = page_ == Page::launcher || page_ == Page::apps;
+    if (!look_->washes || !on_tiles || focus < 0 || focus >= static_cast<int>(tiles_.size()))
+        return;
+    const auto &tile = tiles_[static_cast<std::size_t>(focus)];
+    Color colour{0.0f, 0.0f, 0.0f, 1.0f};
+    if (tile.color.size() == 7 && tile.color[0] == '#')
+    {
+        char *end = nullptr;
+        const auto hex = std::strtoul(tile.color.c_str() + 1, &end, 16);
+        if (end && !*end)
+            colour = Color::rgb(static_cast<std::uint32_t>(hex));
+    }
+    const Color wanted = wash(colour);
+    const auto rect = page_ == Page::apps ? grid_.cell_rect(focus)
+                                          : deck_.slots()[static_cast<std::size_t>(focus)];
+    light_ = hui::gfx::mix(light_.a > 0.0f ? light_ : wanted, wanted, ease);
+    light_x_ += (rect.cx() / hui::gfx::kVirtualWidth - light_x_) * ease;
+    light_y_ += (rect.cy() / hui::gfx::kVirtualHeight - light_y_) * ease;
 }
 void Application::launch(const std::string &id)
 {
@@ -515,7 +719,9 @@ void Application::activate(int index)
             open(Page::apps);
         else if (id == "@quick")
             open(Page::quick);
-        else if (id == "@setup")
+        else if (id == "@choose")
+            open(Page::favourites);
+        else if (id == "@setup" || id == "@connect")
             open(Page::setup);
         else if (id == "@settings")
             launch("com.palm.app.settings");
@@ -535,26 +741,28 @@ void Application::activate(int index)
     }
     if (page_ == Page::setup)
     {
-        switch (index)
+        if (index < 0 || index >= static_cast<int>(setup_rows_.size()))
+            return;
+        switch (static_cast<SetupRow>(setup_rows_[static_cast<std::size_t>(index)].tag))
         {
-        case 0:
+        case SetupRow::address:
             request_keyboard(1);
             break;
-        case 1:
+        case SetupRow::port:
             request_keyboard(3);
             break;
-        case 2:
+        case SetupRow::token:
             request_keyboard(2);
             break;
-        case 3:
+        case SetupRow::connect:
             if (reconnect)
                 reconnect(config_);
             notice_ = "Connecting…";
             break;
-        case 4:
+        case SetupRow::tv:
             open(Page::tvs);
             break;
-        case 5:
+        case SetupRow::input:
             if (ready())
             {
                 const auto &input = snapshot_.states.get(tv()->role("input_source"));
@@ -572,28 +780,40 @@ void Application::activate(int index)
                 rebuild();
             }
             break;
-        case 6:
+        case SetupRow::favourites:
             open(Page::favourites);
             break;
-        case 7:
+        case SetupRow::theme:
+        case SetupRow::dusk:
+            if (setup_rows_[static_cast<std::size_t>(index)].tag ==
+                static_cast<int>(SetupRow::theme))
+                config_.theme = next_look(look_by_id(config_.theme)).id;
+            else
+                config_.dusk_after_sunset = !config_.dusk_after_sunset;
+            look_ = &worn_look(config_.theme, config_.dusk_after_sunset, sun_down_);
+            wear_look();
+            persist();
+            rebuild();
+            break;
+        case SetupRow::reduced_motion:
             config_.reduced_motion = !config_.reduced_motion;
             persist();
             rebuild();
             break;
-        case 8:
+        case SetupRow::vibration:
             config_.vibration = !config_.vibration;
             persist();
             rebuild();
             break;
-        case 9:
+        case SetupRow::diagnostics:
             config_.diagnostics = !config_.diagnostics;
             persist();
             rebuild();
             break;
-        case 10:
+        case SetupRow::help:
             open(Page::help);
             break;
-        case 11:
+        case SetupRow::disconnect:
             config_.token.clear();
             persist();
             if (reconnect)
@@ -601,7 +821,7 @@ void Application::activate(int index)
             notice_ = "Disconnected. Saving the token removal…";
             rebuild();
             break;
-        case 12:
+        case SetupRow::close:
             open(Page::quit);
             break;
         }
@@ -701,6 +921,8 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
         ++presses_;
     grid_.update(dt);
     list_.update(dt);
+    deck_.update(dt);
+    ease_light(dt);
     if (edit_ && !edit_->ticket && now_ >= edit_->due)
         flush_setting();
     for (auto it = pending_edits_.begin(); it != pending_edits_.end();)
@@ -840,7 +1062,7 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
     {
         if (input.is_pressed(Action::west) && !tiles_.empty())
         {
-            const auto &id = tiles_[static_cast<std::size_t>(grid_.focus())].id;
+            const auto &id = tiles_[static_cast<std::size_t>(tile_focus())].id;
             if (find_app(id) && launchable(id))
             {
                 if (!std::erase(config_.favourites, id))
@@ -849,6 +1071,13 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
                 rebuild();
             }
         }
+        const auto event =
+            page_ == Page::apps ? grid_.handle(input, feedback) : deck_.handle(input, feedback);
+        if (event == hui::ui::Event::activated)
+            activate(tile_focus());
+    }
+    else if (page_ == Page::setup)
+    {
         if (grid_.handle(input, feedback) == hui::ui::Event::activated)
             activate(grid_.focus());
     }

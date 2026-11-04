@@ -112,7 +112,7 @@ def session(conn):
             if message['event_type'] == 'entity_registry_updated':
                 watch = ident
         elif kind == 'subscribe_entities':
-            assert all(entity.startswith(('select.', 'sensor.', 'button.', 'number.', 'text.')) for entity in message['entity_ids'])
+            assert all(entity.startswith(('select.', 'sensor.', 'button.', 'number.', 'text.', 'sun.')) for entity in message['entity_ids'])
             send(conn, answer)
             # Initial event may be fragmented, with a websocket ping interleaved.
             send(conn, {'id': ident, 'type': 'event', 'event': fixture['states']}, fragmented=True)

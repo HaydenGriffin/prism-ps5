@@ -24,10 +24,17 @@ which does the same from an Android TV box's remote.
   When LG Settings hands over to another LG screen (such as Game Optimizer), the controller follows it.
 - **Hold Circle to come back.** Tap Circle for Back; hold it for 0.8 s to switch the TV to the PS5's input without a
   stray Back first. If an LG menu covers the PS5's input, Prism dismisses it on the way.
-- **A launcher for the LG.** Your favourite LG apps as big tiles with their own LG icons, recently used apps, all
-  apps, LG Home, LG Settings, and a "Continue on the LG" tile for the last LG app you used.
+- **A launcher for the LG, all on one screen.** The last LG app you used as a big "Continue on the LG" tile, your
+  favourites and recently used apps beside it with their own LG icons, All apps, and a dock with LG Home, LG
+  Settings, Quick TV settings, the remote and Setup. Nothing needs scrolling. The grid shows the first seven apps,
+  favourites before recent ones, and the rest stay in All apps.
 - **Quick TV settings.** Input, picture mode, OLED brightness, energy saving, sound mode, sleep timer and logo
-  dimming, changed with Left and Right. A change is sent half a second after the last step.
+  dimming, changed with Left and Right on a sheet over the launcher, so a picture change shows on the tiles behind it.
+  A change is sent half a second after the last step.
+- **Themes.** Refract, where a soft light follows the focused tile in that app's colour, plus OLED Night, Dusk,
+  Daylight, Aurora and Phosphor. Setup can also switch to Dusk once Home Assistant's sun has set.
+- **Says where the controller goes.** A beam from the PS5 to the LG at the foot of the screen, beside the same thing
+  in words.
 - **The LG keyboard.** While the LG's on-screen keyboard is up, the touchpad opens the PS5 keyboard and sends what
   you type; L2 and R2 are Backspace and Enter. This needs Glasshouse's keyboard entities.
 - **Follows Home Assistant.** Prism finds the TV from Home Assistant's registries and matches entities by their
@@ -40,12 +47,13 @@ forwards again.
 
 ## Screenshots
 
-The ones marked "on the TV" were taken by the TV itself (a 2021 LG C1) while the PS5 showed Prism. The rest are
+The ones marked "on the TV" were taken by the TV itself (a 2021 LG C1) while the PS5 showed Prism, before the screens'
+redesign, which shows under the LG's menus. The rest are
 rendered by Prism's own UI code and shaders from a live Home Assistant; see [Promotional pictures](#promotional-pictures).
 
-| The launcher, on the TV | LG Settings opened from Prism, on the TV |
+| The launcher | LG Settings opened from Prism, on the TV |
 |---|---|
-| <img src="docs/images/tv/launcher.jpg" alt="The Prism launcher on the TV: House to continue on the LG, recently used apps, all apps, LG Home, LG Settings, Quick TV settings and Use as a remote"> | <img src="docs/images/tv/lg-settings.jpg" alt="LG Settings open over Prism's remote screen: Picture, Sound, General and Support, with Prism's controls showing through behind it"> |
+| <img src="docs/images/screenshots/launcher.png" alt="The Prism launcher on one screen: a big Continue on the LG tile, a grid of favourite and recent LG apps ending in All apps, a dock with LG Home, LG Settings, Quick TV settings, Use as a remote and Setup, and a beam showing the controller is on the PS5"> | <img src="docs/images/tv/lg-settings.jpg" alt="LG Settings open over Prism's remote screen: Picture, Sound, General and Support, with Prism's controls showing through behind it"> |
 
 | All LG apps | Controlling an LG app |
 |---|---|
@@ -152,8 +160,8 @@ docker run --rm -v "$PWD:/work" prism-ps5-builder make app
 - `make test` runs the host checks under AddressSanitizer and UndefinedBehaviorSanitizer, and the native client
   against a fake Home Assistant: authentication, fragmented and 3 MB messages, acknowledgements and refusals,
   registry changes, reconnecting without replay, controller timing, and saving settings.
-- `make preview` renders every screen offscreen with **the same UI code and shaders** as the console, using
-  made-up data, into `build/preview/`.
+- `make preview` renders every screen and every theme offscreen with **the same UI code and shaders** as the console,
+  using made-up data, into `build/preview/`.
 - `make lint` checks formatting, source notices, the package identity, the presentation assets and the shell
   scripts.
 - `make fonts` rebakes the bundled fonts; the baked fonts are committed.

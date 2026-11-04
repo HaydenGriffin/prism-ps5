@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "prism/client.hpp"
+#include "prism/deck.hpp"
+#include "prism/look.hpp"
 #include "prism/remote.hpp"
 #include "platform/ps5/keyboard.hpp"
 #include "ui/components/grid.hpp"
@@ -37,6 +39,13 @@ class Application
     void update(const hui::InputFrame &input, float dt, std::int64_t now,
                 hui::ui::Feedback &feedback);
     void draw(hui::ui::Canvas &canvas) const;
+    // What the renderer paints behind and over the frame's draw list.
+    hui::gfx::BackdropSpec ground(float time) const;
+    hui::gfx::BackdropSpec overlay() const;
+    const Look &look() const
+    {
+        return *look_;
+    }
     void open(Page page);
     void keyboard_result(const hui::ps5::KeyboardOutcome &result);
     std::optional<hui::ps5::KeyboardOptions> take_keyboard();
@@ -65,12 +74,38 @@ class Application
     {
         return notice_;
     }
+    // Where the controller goes, in words: the foot of the screen, beside the beam.
+    std::string live_line() const;
     Json diagnostic() const;
 
   private:
     struct Tile
     {
         std::string id, title, subtitle, icon, color;
+    };
+    enum class BeamEnd
+    {
+        none,
+        ps5,
+        lg
+    };
+    enum class SetupRow
+    {
+        address,
+        port,
+        token,
+        connect,
+        tv,
+        input,
+        favourites,
+        theme,
+        dusk,
+        reduced_motion,
+        vibration,
+        diagnostics,
+        help,
+        disconnect,
+        close
     };
     struct Edit
     {
@@ -80,8 +115,29 @@ class Application
         bool accepted = false;
     };
     void rebuild();
+    void build_deck();
     void setup_view();
-    void draw_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void arrange_page();
+    void wear_look();
+    void ease_light(float dt);
+    int tile_focus() const;
+    BeamEnd beam_end() const;
+    void draw_deck(hui::ui::Canvas &canvas) const;
+    void draw_big_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void draw_grid_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void draw_dock_tile(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void draw_app_cell(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void draw_setup_row(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, int index) const;
+    void draw_list_row(hui::ui::Canvas &canvas, const hui::gfx::Rect &row,
+                       const hui::ui::ListItem &item, float focus) const;
+    void draw_art(hui::ui::Canvas &canvas, const Tile &tile, const hui::gfx::Rect &art) const;
+    void draw_panel(hui::ui::Canvas &canvas, const hui::gfx::Rect &bounds, float radius) const;
+    void draw_header(hui::ui::Canvas &canvas) const;
+    void draw_sheet(hui::ui::Canvas &canvas) const;
+    void draw_remote(hui::ui::Canvas &canvas) const;
+    void draw_help(hui::ui::Canvas &canvas) const;
+    void draw_foot(hui::ui::Canvas &canvas) const;
+    void draw_beam(hui::ui::Canvas &canvas, float x, float cy) const;
     void activate(int index);
     void launch(const std::string &id);
     void return_to_ps5();
@@ -102,6 +158,13 @@ class Application
     std::map<std::string, std::uint32_t> textures_;
     hui::ui::GridView grid_;
     hui::ui::ListView list_;
+    Deck deck_;
+    std::vector<hui::ui::ListItem> setup_rows_;
+    const Look *look_ = nullptr;
+    bool sun_down_ = false;
+    // The ground's light (Refract) and the beam's dot, each easing to where it now belongs.
+    Color light_{0.0f, 0.0f, 0.0f, 0.0f};
+    float light_x_ = 0.25f, light_y_ = 0.35f, beam_along_ = 0.0f;
     Page page_ = Page::launcher;
     Remote remote_;
     std::optional<hui::ps5::KeyboardOptions> keyboard_;
