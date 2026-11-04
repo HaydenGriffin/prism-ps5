@@ -115,7 +115,10 @@ class Application
         std::uint64_t ticket = 0;
         bool accepted = false;
     };
+    // A list row's tag on the Favourites page: this app is one.
+    static constexpr int kFavouriteRow = 1;
     void rebuild();
+    void disarm_disconnect();
     void build_deck();
     void setup_view();
     void arrange_page();
@@ -169,7 +172,7 @@ class Application
     Deck deck_;
     std::vector<hui::ui::ListItem> setup_rows_;
     const Look *look_ = nullptr;
-    bool sun_down_ = false;
+    bool sun_down_ = false, disconnect_armed_ = false;
     // The ground's light (Refract) and the beam's dot, each easing to where it now belongs.
     Color light_{0.0f, 0.0f, 0.0f, 0.0f};
     float light_x_ = 0.25f, light_y_ = 0.35f, beam_along_ = 0.0f;

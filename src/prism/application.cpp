@@ -21,6 +21,7 @@ Application::Application(Config c) : config_(std::move(c))
     grid_.style.padding = 12;
     list_.style.highlight.kind = hui::ui::HighlightKind::ring;
     list_.style.cards = false;
+    list_.style.gap = 14; // the focus ring reaches 11 past a row, and rows are drawn after it
     list_.style.title_size = 30;
     list_.style.subtitle_size = 24;
     list_.style.value_size = 28;
@@ -82,12 +83,12 @@ void Application::arrange_page()
     }
     if (page_ == Page::quick)
     {
-        list_.style.row_height = 88;
+        list_.style.row_height = 80;
         list_.set_bounds({1072, 186, 800, 680});
     }
     else
     {
-        list_.style.row_height = 84;
+        list_.style.row_height = 80;
         list_.set_bounds({96, 160, 1728, 780});
     }
 }
@@ -252,6 +253,7 @@ void Application::follow_lg_surface(const std::string &current, bool generation_
 void Application::open(Page p)
 {
     flush_setting();
+    disconnect_armed_ = false;
     // Back from the sheet lands on the tile that opened it.
     const bool sheet_closing = page_ == Page::quick && p == Page::launcher;
     const bool sheet_opening = page_ == Page::launcher && p == Page::quick;
@@ -367,11 +369,11 @@ void Application::rebuild()
     else if (page_ == Page::favourites)
     {
         for (const auto &id : config_.favourites)
-            row(app_name(id), "", "On");
+            row(app_name(id), "", "", false, kFavouriteRow);
         for (const auto &a : apps_)
             if (launchable(a.id) && std::find(config_.favourites.begin(), config_.favourites.end(),
                                               a.id) == config_.favourites.end())
-                row(a.title, "", "Off");
+                row(a.title);
     }
     else if (page_ == Page::quick)
     {
@@ -395,6 +397,12 @@ void Application::rebuild()
         list_.set_items(std::move(rows));
         list_.set_focus(focus);
     }
+}
+void Application::disarm_disconnect()
+{
+    if (disconnect_armed_)
+        notice_.clear();
+    disconnect_armed_ = false;
 }
 int Application::tile_focus() const
 {
@@ -470,8 +478,11 @@ void Application::build_deck()
             break;
         app_tile(id, "", grid_rect(cell++));
     }
-    tiles_.push_back({"@apps", "All apps", "", "", ""});
-    slots.push_back(grid_rect(kGridApps));
+    if (!apps_.empty())
+    {
+        tiles_.push_back({"@apps", "All apps", "", "", ""});
+        slots.push_back(grid_rect(kGridApps));
+    }
     const std::vector<std::pair<const char *, const char *>> dock = {
         {"@home", "LG Home"},
         {"@settings", "LG Settings"},
@@ -820,6 +831,15 @@ void Application::activate(int index)
             open(Page::help);
             break;
         case SetupRow::disconnect:
+            // Getting a long-lived token back in with a controller is slow, so it takes two
+            // presses.
+            if (!disconnect_armed_)
+            {
+                disconnect_armed_ = true;
+                notice_ = "Press Cross again to forget the token.";
+                break;
+            }
+            disarm_disconnect();
             config_.token.clear();
             persist();
             if (reconnect)
@@ -1084,7 +1104,10 @@ void Application::update(const hui::InputFrame &input, float dt, std::int64_t no
     }
     else if (page_ == Page::setup)
     {
-        if (grid_.handle(input, feedback) == hui::ui::Event::activated)
+        const auto event = grid_.handle(input, feedback);
+        if (event == hui::ui::Event::moved)
+            disarm_disconnect();
+        if (event == hui::ui::Event::activated)
             activate(grid_.focus());
     }
     else

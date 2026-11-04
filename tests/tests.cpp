@@ -442,6 +442,43 @@ int main(int argc, char **argv)
     CHECK((grid_order({"a", "b"}, {"c", "a"}, {"c", "d", "e"}, "b") ==
            std::vector<std::string>{"a", "c", "d", "e"}));
     CHECK(grid_order({}, {}, {}, "").empty());
+    // Forgetting the token takes two presses, and moving away cancels the first.
+    Config keep_config = Config::parse(f["config"]);
+    Application keep(keep_config);
+    keep.receive(snapshot(f));
+    keep.open(Page::setup);
+    auto walk = [&](hui::Direction d, int times)
+    {
+        hui::InputFrame step;
+        step.connected = true;
+        step.nav = d;
+        for (int i = 0; i < times; ++i)
+        {
+            tick(keep, step);
+            hui::InputFrame idle;
+            idle.connected = true;
+            tick(keep, idle);
+        }
+    };
+    walk(hui::Direction::down, 6);
+    walk(hui::Direction::right, 1); // Disconnect and forget token
+    auto press_cross = [&]
+    {
+        tick(keep, input(hui::Action::confirm));
+        hui::InputFrame idle;
+        idle.connected = true;
+        tick(keep, idle);
+    };
+    press_cross();
+    CHECK(!keep.config().token.empty());
+    CHECK(keep.notice().find("again") != std::string::npos);
+    walk(hui::Direction::left, 1);
+    CHECK(keep.notice().empty());
+    walk(hui::Direction::right, 1);
+    press_cross();
+    CHECK(!keep.config().token.empty());
+    press_cross();
+    CHECK(keep.config().token.empty());
     // The focus finds its way round the deck's three parts by distance.
     Deck deck;
     std::vector<hui::gfx::Rect> slots = {big_tile_rect()};

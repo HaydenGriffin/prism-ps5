@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "prism/application.hpp"
 #include "ui/glyphs.hpp"
+#include <cmath>
 #include <cstdlib>
 
 namespace prism
@@ -97,15 +98,17 @@ void draw_glyph(Canvas &c, const std::string &id, const Rect &box, Color color)
     }
     else if (id == "@settings")
     {
-        c.list.ring(box.x + 24.0f * s, box.y + 24.0f * s, 8.5f * s, stroke, color);
-        line(24, 6, 24, 13);
-        line(24, 35, 24, 42);
-        line(6, 24, 13, 24);
-        line(35, 24, 42, 24);
-        line(11, 11, 16, 16);
-        line(32, 32, 37, 37);
-        line(37, 11, 32, 16);
-        line(16, 32, 11, 37);
+        // A gear: a toothed ring round a small hub.
+        const float cx = box.x + 24.0f * s, cy = box.y + 24.0f * s;
+        c.list.ring(cx, cy, 13.0f * s, stroke, color);
+        c.list.ring(cx, cy, 4.5f * s, stroke * 0.8f, color);
+        for (int i = 0; i < 8; ++i)
+        {
+            const float angle = static_cast<float>(i) * 0.7854f;
+            const float dx = std::sin(angle) * s, dy = -std::cos(angle) * s;
+            c.list.line(cx + dx * 14.0f, cy + dy * 14.0f, cx + dx * 19.0f, cy + dy * 19.0f,
+                        stroke * 1.6f, color);
+        }
     }
     else if (id == "@quick")
     {
@@ -261,7 +264,6 @@ void Application::draw_deck(Canvas &c) const
 {
     const auto &slots = deck_.slots();
     const int count = static_cast<int>(slots.size());
-    int apps = 0, places = 0;
     for (int i = 0; i < count; ++i)
     {
         const auto &rect = slots[static_cast<std::size_t>(i)];
@@ -280,15 +282,8 @@ void Application::draw_deck(Canvas &c) const
         else
         {
             draw_grid_tile(c, rect, i, focus);
-            ++(tiles_[static_cast<std::size_t>(i)].id.starts_with("@") ? places : apps);
         }
         c.list.pop_transform();
-    }
-    if (apps == 0 && count > 0 && ready())
-    {
-        const auto &free_cell = grid_rect(places - 1);
-        words(c, "Apps you open on the LG show up here", free_cell.x + 8.0f, free_cell.cy() + 10.0f,
-              30.0f, kRight - free_cell.x - 8.0f, look_->muted);
     }
     if (page_ == Page::launcher)
     {
@@ -342,8 +337,13 @@ void Application::draw_list_row(Canvas &c, const Rect &row, const hui::ui::ListI
     }
     else
     {
-        words(c, item.title, row.x + pad, row.y + 35.0f, 30.0f, title_room, title, true);
-        words(c, item.subtitle, row.x + pad, row.y + 69.0f, 27.0f, title_room, look_->muted);
+        words(c, item.title, row.x + pad, row.y + 33.0f, 30.0f, title_room, title, true);
+        words(c, item.subtitle, row.x + pad, row.y + 66.0f, 27.0f, title_room, look_->muted);
+    }
+    if (item.tag == kFavouriteRow)
+    {
+        c.list.circle(row.x + row.w - 44.0f, row.cy(), 20.0f, look_->accent);
+        c.list.star(row.x + row.w - 44.0f, row.cy(), 13.0f, look_->on_accent);
     }
     if (value.empty())
         return;
@@ -383,7 +383,7 @@ std::vector<hui::ui::Hint> Application::foot_hints() const
 {
     using hui::ui::Hint;
     if (page_ == Page::remote)
-        return {{Button::circle, "Hold to return"}, {Button::options, "Return to PS5"}};
+        return {{Button::options, "Return to PS5"}};
     std::vector<Hint> hints;
     if (page_ == Page::launcher || page_ == Page::apps)
     {
@@ -401,7 +401,7 @@ std::vector<hui::ui::Hint> Application::foot_hints() const
     if (page_ != Page::help && !(page_ == Page::tvs && snapshot_.tvs.empty()))
         hints.push_back({Button::cross, "Select"});
     hints.push_back({Button::circle, "Back"});
-    hints.push_back({Button::options, "Launcher"});
+    hints.push_back({Button::options, page_ == Page::setup ? "Launcher" : "Setup"});
     return hints;
 }
 void Application::draw_foot(Canvas &c) const
@@ -434,8 +434,7 @@ void Application::draw_sheet(Canvas &c) const
     const float x = 1096.0f, width = 730.0f;
     words(c, "Quick TV settings", x, 104.0f, 46.0f, width, look_->text, true);
     if (notice_.empty())
-        words(c, "Left and Right change a value, sent when you pause", x, 150.0f, 26.0f, width,
-              look_->muted);
+        words(c, "Left and Right change a value", x, 150.0f, 26.0f, width, look_->muted);
     else
         words(c, notice_, x, 150.0f, 26.0f, width, look_->accent);
     list_.draw(c);
@@ -470,8 +469,8 @@ void Application::draw_header(Canvas &c) const
                    "that fit; the rest stay in All apps.";
         break;
     case Page::help:
-        title = "Ready for the LG";
-        subtitle = "Setup check and controller guide";
+        title = "Setup check";
+        subtitle = "Connection, return shortcut and controller focus";
         break;
     case Page::remote:
         title = "Your controller is the LG remote";
@@ -568,12 +567,11 @@ void Application::draw(Canvas &c) const
     if (page_ == Page::apps && tiles_.empty())
     {
         words(c, "No apps to show yet", kLeft, 240.0f, 42.0f, 1500.0f, look_->text, true);
-        paragraph(c,
-                  ready()
-                      ? "Turn on the LG and check that Glasshouse exposes app_ids on Launch App. "
-                        "You can return to Setup with Options."
-                      : snapshot_.status,
-                  kLeft, 298.0f, 30.0f, 1400.0f, 44.0f, look_->muted, 3);
+        if (ready())
+            paragraph(c,
+                      "Turn on the LG and check that Glasshouse exposes app_ids on Launch App. "
+                      "You can return to Setup with Options.",
+                      kLeft, 298.0f, 30.0f, 1400.0f, 44.0f, look_->muted, 3);
     }
     else if (page_ == Page::apps || page_ == Page::setup)
         grid_.draw(c);
