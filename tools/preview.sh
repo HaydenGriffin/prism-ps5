@@ -5,7 +5,7 @@ cd "$root"
 source tools/ninja-build.sh
 cxx=$(command -v "${HOST_CXX:-clang++}")
 ninja_begin "$root/build/preview-build/build.ninja"
-sources=(src/prism/model.cpp src/prism/remote.cpp src/prism/application.cpp src/prism/view.cpp src/core/input.cpp src/core/save_file.cpp host/platform_host.cpp host/preview.cpp src/third_party/stb_image.cpp src/gfx/*.cpp src/ui/*.cpp src/ui/components/*.cpp)
+sources=(src/prism/model.cpp src/prism/remote.cpp src/prism/application.cpp src/prism/view.cpp src/prism/look.cpp src/prism/deck.cpp src/core/input.cpp src/core/save_file.cpp host/platform_host.cpp host/preview.cpp src/third_party/stb_image.cpp src/gfx/*.cpp src/ui/*.cpp src/ui/components/*.cpp)
 objects=()
 for source in "${sources[@]}"; do
  object="$root/build/preview-build/${source//\//_}.o"

@@ -31,7 +31,7 @@ int main()
         sys::quit();
         return 1;
     }
-    gfx::Font regular, bold, display_face;
+    gfx::Font regular, bold, display_face, numerals;
     ui::Fonts fonts;
     auto font = [&](const char *name, gfx::Font &face, ui::FontRef &ref)
     {
@@ -44,13 +44,13 @@ int main()
     };
     if (!font("atkinson-regular", regular, fonts.regular) ||
         !font("atkinson-semibold", bold, fonts.semibold) ||
+        !font("lexend-regular", numerals, fonts.mono) ||
         !font("lexend-semibold", display_face, fonts.display))
     {
         sys::log("[Prism] Font assets missing");
         sys::quit();
         return 1;
     }
-    fonts.mono = fonts.regular;
     fonts.hand = fonts.regular;
     fonts.pixel = fonts.regular;
     ps5::Pad pad;
@@ -170,7 +170,9 @@ int main()
         ui::Canvas canvas{list, fonts, 0, static_cast<float>(now) / 1000000.0f};
         app.draw(canvas);
         renderer.begin();
+        renderer.backdrop(app.ground(canvas.time));
         renderer.draw(list);
+        renderer.backdrop(app.overlay());
         renderer.present(0, display.width(), display.height());
         if (!display.swap())
             break;

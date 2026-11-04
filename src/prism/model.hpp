@@ -15,14 +15,16 @@ std::vector<std::string> strings(const Json &j);
 const Json &field(const Json &j, const std::string &key);
 struct Config
 {
-    std::string host, token, device, input, input_app;
+    std::string host, token, device, input, input_app, theme = "refract";
     int port = 8123;
-    bool reduced_motion = false, diagnostics = false, vibration = false;
+    bool reduced_motion = false, diagnostics = false, vibration = false, dusk_after_sunset = false;
     std::vector<std::string> favourites, recent;
     bool configured() const;
     Json json() const;
     static Config parse(const Json &j);
 };
+// Home Assistant's own sun, for Dusk after sunset. Not a TV entity: it is only ever read.
+inline constexpr const char *kSunEntity = "sun.sun";
 struct Tv
 {
     std::string name, device;

@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- The launcher fits one screen: a big Continue tile, a grid of favourites, recent apps and then the TV's others ending
+  in All apps, and a dock with LG Home, LG Settings, Quick TV settings, the remote and Setup. Favourites past the grid's
+  seven places stay in All apps.
+- Title and hints shrink to one compact line each, so pages have about a third more room. All apps shows four whole
+  rows of six, and never cuts a row. Setup lists its rows in two columns, so they all show at once.
+- A beam at the foot of the screen shows where the controller goes, the PS5 or the LG, beside the same thing in words.
+- Themes in Setup: Refract (new default; a soft light follows the focused tile in that app's colour), OLED Night, Dusk,
+  Daylight, Aurora and Phosphor. Setup → Dusk after sunset switches to Dusk when Home Assistant's sun has set.
+- Quick TV settings is a sheet over the launcher, with all seven settings on screen.
+- Digits are drawn in Lexend, as on Android TV: Atkinson's slashed zero read as "Ø" from the sofa.
+- LG Settings, Quick TV settings and Setup each have their own icon.
+- Hints only offer what the buttons really do on the focused item. Options is labelled for where it goes.
+- Failures read as failures, in the error colour. Square only acts on All apps, where the star shows that it worked.
+- Disconnect and forget token takes two presses.
+- The digits lost the seams that showed inside some of them, and Favourites use a star in place of On and Off.
+
 ## 1.0.1 (27 October 2026)
 
 - The remote screen names Game Optimizer, and any other LG system screen without a name of its own is "LG screen",

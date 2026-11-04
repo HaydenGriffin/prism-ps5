@@ -148,6 +148,8 @@ void Client::run()
             for (const auto &tv : tvs)
                 for (const auto &[role, id] : tv.roles)
                     ids.insert(id);
+            if (!ids.empty())
+                ids.insert(kSunEntity);
             if (subscription && ids == watched)
             {
                 // Same TV entities: keep the live subscription and only refresh names.

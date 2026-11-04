@@ -51,6 +51,8 @@ Json Config::json() const
             {"input_app", input_app},
             {"favourites", favourites},
             {"recent", recent},
+            {"theme", theme},
+            {"dusk_after_sunset", dusk_after_sunset},
             {"reduced_motion", reduced_motion},
             {"vibration", vibration},
             {"diagnostics", diagnostics}};
@@ -66,6 +68,8 @@ Config Config::parse(const Json &j)
     const auto &port = field(j, "port");
     if (port.is_number_integer() && port >= 1 && port <= 65535)
         c.port = port.get<int>();
+    c.theme = text(j, "theme", c.theme);
+    c.dusk_after_sunset = field(j, "dusk_after_sunset") == true;
     c.reduced_motion = field(j, "reduced_motion") == true;
     c.diagnostics = field(j, "diagnostics") == true;
     c.vibration = field(j, "vibration") == true;
