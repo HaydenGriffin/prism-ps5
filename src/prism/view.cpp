@@ -332,8 +332,9 @@ void Application::draw_list_row(Canvas &c, const Rect &row, const hui::ui::ListI
     const float pad = 28.0f, size = page_ == Page::quick ? 32.0f : 30.0f;
     const bool stepper = page_ == Page::quick;
     const auto value = stepper ? sentence_case(item.value) : item.value;
-    const float title_room =
-        row.w - 2.0f * pad - (value.empty() ? 0.0f : words_width(c, value, size, stepper) + 90.0f);
+    // A long input name gives way before the row's label does.
+    const float value_room = std::min(words_width(c, value, size, stepper), row.w * 0.5f);
+    const float title_room = row.w - 2.0f * pad - (value.empty() ? 0.0f : value_room + 90.0f);
     const Color title = item.disabled ? look_->muted : look_->text;
     if (item.subtitle.empty())
     {
@@ -349,7 +350,7 @@ void Application::draw_list_row(Canvas &c, const Rect &row, const hui::ui::ListI
     const float end = row.x + row.w - pad;
     if (stepper && focus > 0.5f && !item.disabled)
     {
-        const float width = words_width(c, value, size, true);
+        const float width = value_room;
         const Rect after{end - 16.0f, row.cy() - 10.0f, 16.0f, 20.0f};
         const Rect before{end - width - 66.0f, row.cy() - 10.0f, 16.0f, 20.0f};
         c.list.triangle(after, look_->muted, 0.0f, 1.5708f);
