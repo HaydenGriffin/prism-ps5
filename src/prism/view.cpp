@@ -53,14 +53,14 @@ void paragraph(Canvas &c, std::string_view s, float x, float y, float size, floa
         words(c, wrapped[static_cast<std::size_t>(i)], x, y + static_cast<float>(i) * leading, size,
               width, color);
 }
-// A name on up to two lines, centred on x, the first baseline at y.
+// A name on up to two lines, centred on x, the first baseline at y whatever its length.
 void centred_name(Canvas &c, const std::string &s, float x, float y, float size, float width,
                   float leading, Color color)
 {
     const auto lines = face(c, true).font->wrap(s, size, width);
     if (lines.size() < 2)
     {
-        words(c, s, x, y + leading * 0.5f, size, width, color, true, Align::center);
+        words(c, s, x, y, size, width, color, true, Align::center);
         return;
     }
     words(c, lines[0], x, y, size, width, color, true, Align::center);
@@ -313,9 +313,9 @@ void Application::draw_setup_row(Canvas &c, const Rect &r, int index, float focu
     draw_panel(c, r, 16.0f, focus);
     const float value = row.value.empty() ? 0.0f : words_width(c, row.value, 30.0f, false) + 24.0f;
     const float room = r.w - 56.0f - std::min(value, 360.0f);
-    words(c, row.title, r.x + 28.0f, r.y + 38.0f, 30.0f, room,
+    words(c, row.title, r.x + 28.0f, r.y + 35.0f, 30.0f, room,
           row.disabled ? look_->muted : look_->text, true);
-    words(c, row.subtitle, r.x + 28.0f, r.y + 73.0f, 27.0f, room, look_->muted);
+    words(c, row.subtitle, r.x + 28.0f, r.y + 69.0f, 27.0f, room, look_->muted);
     if (!row.value.empty())
         words(c, row.value, r.x + r.w - 28.0f, r.cy() + 10.0f, 30.0f, 340.0f, look_->muted, false,
               Align::right);

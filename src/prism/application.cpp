@@ -66,9 +66,9 @@ void Application::arrange_page()
     if (page_ == Page::setup)
     {
         grid_.style.columns = 2;
-        grid_.style.cell_height = 88;
+        grid_.style.cell_height = 82; // with the gap, room for the focus ring's reach of 11
         grid_.style.gap_x = 24;
-        grid_.style.gap_y = 8;
+        grid_.style.gap_y = 14;
         grid_.style.card.focus_scale = 1.0f;
         grid_.set_bounds({84, 150, 1752, 792});
     }
