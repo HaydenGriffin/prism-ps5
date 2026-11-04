@@ -442,6 +442,27 @@ int main(int argc, char **argv)
     CHECK((grid_order({"a", "b"}, {"c", "a"}, {"c", "d", "e"}, "b") ==
            std::vector<std::string>{"a", "c", "d", "e"}));
     CHECK(grid_order({}, {}, {}, "").empty());
+    // When the connection drops and the focused tile goes, a press must not land on a dock action.
+    Application dropped(Config::parse(f["config"]));
+    dropped.receive(snapshot(f));
+    dropped.open(Page::launcher);
+    int dropped_sends = 0;
+    dropped.send = [&](Command)
+    {
+        ++dropped_sends;
+        return dropped_sends;
+    };
+    auto right = neutral;
+    right.nav = hui::Direction::right;
+    tick(dropped, right); // the grid's first app
+    tick(dropped, neutral);
+    auto no_connection = snapshot(f);
+    no_connection.ready = false;
+    no_connection.states.clear();
+    dropped.receive(no_connection);
+    tick(dropped, input(hui::Action::confirm));
+    CHECK(dropped.page() == Page::setup); // the big tile's Check connection, not LG Home
+    CHECK(dropped_sends == 0);
     // Square only changes favourites on All apps, where the star shows that it worked.
     Application square(Config::parse(f["config"]));
     square.receive(snapshot(f));

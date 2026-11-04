@@ -311,6 +311,7 @@ void Application::rebuild()
     }
     if (page_ != Page::launcher && page_ != Page::quick)
         grid_.set_count(page_ == Page::setup ? 15 : static_cast<int>(tiles_.size()));
+    bool refocused = false;
     if (!focused.empty())
         for (std::size_t i = 0; i < tiles_.size(); i++)
             if (tiles_[i].id == focused)
@@ -319,8 +320,13 @@ void Application::rebuild()
                     grid_.set_focus(static_cast<int>(i));
                 else
                     deck_.set_focus(static_cast<int>(i));
+                refocused = true;
                 break;
             }
+    // A tile that has gone must not hand a press to whatever slid into its place, such as a dock
+    // action.
+    if (!focused.empty() && !refocused && page_ != Page::apps)
+        deck_.set_focus(0);
     std::vector<ListItem> rows;
     auto row = [&](std::string title, std::string sub = "", std::string value = "",
                    bool disabled = false, int tag = 0)
